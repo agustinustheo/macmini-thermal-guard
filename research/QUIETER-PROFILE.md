@@ -1,5 +1,9 @@
 # Quieter floor with controlled thermal shutdown
 
+**Historical profile validation:** the PSU curve was subsequently refined; see
+[PSU-CURVE.md](PSU-CURVE.md) for current PSU requests. Other curves and all
+full-cooling and shutdown thresholds below remain unchanged.
+
 This profile changes the installed floor from 3000 to 2350 RPM, a 650 RPM
 reduction when all monitored components are cool. It does not clear the
 unexplained maximum automatic fan behavior identified by the thermal audit.

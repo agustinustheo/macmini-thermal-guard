@@ -9,7 +9,9 @@ See the [post-reboot check](../evidence/POST-REBOOT-CHECK-20260926.md).
 **Subsequent profile update:** the installed floor is now 2350 RPM, with all
 full-cooling temperatures unchanged and component-specific critical shutdown
 added. See [QUIETER-PROFILE.md](QUIETER-PROFILE.md) for the additional research,
-cutoffs and validation. Earlier measurements below retain their original floors.
+cutoffs and validation. The subsequent [PSU curve adjustment](PSU-CURVE.md)
+changes intermediate PSU requests and the PSU entry allowance. See also the
+[baseline research](PSU-BASELINE-RESEARCH.md) and uninstalled broader-ramp candidate. Earlier measurements below retain their original floors.
 
 Research date: 2026-09-25. Supported model: 2010 Mac mini, P8600 2.4 GHz, two CPU cores,
 GeForce 320M, Linux. This reference preserves extracted facts locally so

@@ -224,6 +224,12 @@ def thermal_demand(snapshot, minimum=4300):
         raise Unsafe('Invalid fan floor')
     fractions = {k: (snapshot['temps'][k] - (limit-4))/2
                  for k, limit in LIMITS.items()}
+    # Tp0C often hovers at 56–57 C. Use only the first quarter of the
+    # cooling range there, then ramp more strongly to the unchanged 58 C
+    # maximum. This is a custom noise tradeoff, not a PSU temperature rating.
+    psu_rise = snapshot['temps']['Tp0C'] - 56
+    fractions['Tp0C'] = (psu_rise / 4 if psu_rise <= 1
+                         else 0.25 + (psu_rise - 1) * 0.75)
     fractions['CPU'] = (max(snapshot['temps']['TC0D'], *(v for k,v in
         snapshot['independent'].items() if k.startswith('coretemp/'))) - 45)/10
     fractions['GPU'] = (max(v for k,v in snapshot['independent'].items()
@@ -268,7 +274,7 @@ class Policy:
             return self.mode
         # Permit the PSU's stable warm baseline to enter temperature control.
         # This does not change its 58 C full-cooling or 65 C shutdown thresholds.
-        entry_margins_ok = all(LIMITS[k] - snap['temps'][k] >= (3 if k == 'Tp0C' else 4)
+        entry_margins_ok = all(LIMITS[k] - snap['temps'][k] >= (2.5 if k == 'Tp0C' else 4)
                                for k in LIMITS)
         cool = cpu_temp < 50 and gpu_temp < 52 and entry_margins_ok
         # Do not override normal automatic cooling if firmware is no longer

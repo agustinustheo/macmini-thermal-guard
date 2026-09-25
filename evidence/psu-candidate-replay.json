@@ -1,0 +1,424 @@
+{
+  "summary": {
+    "duration_seconds": 181.5,
+    "samples": 37,
+    "manual_samples": 0,
+    "PSU_C": [
+      56.5,
+      57.25
+    ],
+    "GPU_C": [
+      48.0,
+      51.0
+    ],
+    "CPU_C": [
+      38.0,
+      48.0
+    ],
+    "mean_installed_demand": 3262,
+    "mean_candidate_demand": 3023,
+    "candidate_samples_limited_by_other_components": 32
+  },
+  "candidate_points_not_installed": [
+    [
+      56,
+      2350
+    ],
+    [
+      57,
+      2550
+    ],
+    [
+      58,
+      3000
+    ],
+    [
+      59,
+      3600
+    ],
+    [
+      60,
+      4300
+    ],
+    [
+      61,
+      4900
+    ],
+    [
+      62,
+      5500
+    ]
+  ],
+  "samples": [
+    {
+      "elapsed_seconds": 0.04,
+      "installed_demand_rpm": 3550,
+      "candidate_demand_rpm": 3550,
+      "other_components_rpm": 3550,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2550
+    },
+    {
+      "elapsed_seconds": 5.07,
+      "installed_demand_rpm": 3750,
+      "candidate_demand_rpm": 3150,
+      "other_components_rpm": 3150,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2675
+    },
+    {
+      "elapsed_seconds": 10.13,
+      "installed_demand_rpm": 3150,
+      "candidate_demand_rpm": 3150,
+      "other_components_rpm": 3150,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2550
+    },
+    {
+      "elapsed_seconds": 15.16,
+      "installed_demand_rpm": 3150,
+      "candidate_demand_rpm": 3150,
+      "other_components_rpm": 3150,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2500
+    },
+    {
+      "elapsed_seconds": 20.2,
+      "installed_demand_rpm": 3150,
+      "candidate_demand_rpm": 3150,
+      "other_components_rpm": 3150,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2450
+    },
+    {
+      "elapsed_seconds": 25.24,
+      "installed_demand_rpm": 3150,
+      "candidate_demand_rpm": 3150,
+      "other_components_rpm": 3150,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2550
+    },
+    {
+      "elapsed_seconds": 30.28,
+      "installed_demand_rpm": 3150,
+      "candidate_demand_rpm": 3150,
+      "other_components_rpm": 3150,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2500
+    },
+    {
+      "elapsed_seconds": 35.32,
+      "installed_demand_rpm": 3150,
+      "candidate_demand_rpm": 3150,
+      "other_components_rpm": 3150,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2550
+    },
+    {
+      "elapsed_seconds": 40.36,
+      "installed_demand_rpm": 2950,
+      "candidate_demand_rpm": 2750,
+      "other_components_rpm": 2750,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2500
+    },
+    {
+      "elapsed_seconds": 45.4,
+      "installed_demand_rpm": 3150,
+      "candidate_demand_rpm": 3150,
+      "other_components_rpm": 3150,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2500
+    },
+    {
+      "elapsed_seconds": 50.46,
+      "installed_demand_rpm": 3150,
+      "candidate_demand_rpm": 3150,
+      "other_components_rpm": 3150,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2500
+    },
+    {
+      "elapsed_seconds": 55.5,
+      "installed_demand_rpm": 3300,
+      "candidate_demand_rpm": 3300,
+      "other_components_rpm": 3300,
+      "other_drivers": [
+        "CPU"
+      ],
+      "candidate_psu_rpm": 2550
+    },
+    {
+      "elapsed_seconds": 60.54,
+      "installed_demand_rpm": 3550,
+      "candidate_demand_rpm": 3550,
+      "other_components_rpm": 3550,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2500
+    },
+    {
+      "elapsed_seconds": 65.61,
+      "installed_demand_rpm": 3550,
+      "candidate_demand_rpm": 3550,
+      "other_components_rpm": 3550,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2550
+    },
+    {
+      "elapsed_seconds": 70.64,
+      "installed_demand_rpm": 3550,
+      "candidate_demand_rpm": 3550,
+      "other_components_rpm": 3550,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2550
+    },
+    {
+      "elapsed_seconds": 75.68,
+      "installed_demand_rpm": 3150,
+      "candidate_demand_rpm": 3150,
+      "other_components_rpm": 3150,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2500
+    },
+    {
+      "elapsed_seconds": 80.72,
+      "installed_demand_rpm": 3150,
+      "candidate_demand_rpm": 3150,
+      "other_components_rpm": 3150,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2500
+    },
+    {
+      "elapsed_seconds": 85.76,
+      "installed_demand_rpm": 3150,
+      "candidate_demand_rpm": 3150,
+      "other_components_rpm": 3150,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2550
+    },
+    {
+      "elapsed_seconds": 90.8,
+      "installed_demand_rpm": 3150,
+      "candidate_demand_rpm": 3150,
+      "other_components_rpm": 3150,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2500
+    },
+    {
+      "elapsed_seconds": 95.84,
+      "installed_demand_rpm": 3150,
+      "candidate_demand_rpm": 3150,
+      "other_components_rpm": 3150,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2500
+    },
+    {
+      "elapsed_seconds": 100.87,
+      "installed_demand_rpm": 3150,
+      "candidate_demand_rpm": 3150,
+      "other_components_rpm": 3150,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2500
+    },
+    {
+      "elapsed_seconds": 105.91,
+      "installed_demand_rpm": 3750,
+      "candidate_demand_rpm": 3150,
+      "other_components_rpm": 3150,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2675
+    },
+    {
+      "elapsed_seconds": 110.95,
+      "installed_demand_rpm": 3150,
+      "candidate_demand_rpm": 3150,
+      "other_components_rpm": 3150,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2550
+    },
+    {
+      "elapsed_seconds": 115.98,
+      "installed_demand_rpm": 3150,
+      "candidate_demand_rpm": 3150,
+      "other_components_rpm": 3150,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2550
+    },
+    {
+      "elapsed_seconds": 121.02,
+      "installed_demand_rpm": 3750,
+      "candidate_demand_rpm": 2750,
+      "other_components_rpm": 2750,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2675
+    },
+    {
+      "elapsed_seconds": 126.06,
+      "installed_demand_rpm": 3150,
+      "candidate_demand_rpm": 2750,
+      "other_components_rpm": 2750,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2550
+    },
+    {
+      "elapsed_seconds": 131.09,
+      "installed_demand_rpm": 3150,
+      "candidate_demand_rpm": 2750,
+      "other_components_rpm": 2750,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2550
+    },
+    {
+      "elapsed_seconds": 136.14,
+      "installed_demand_rpm": 2950,
+      "candidate_demand_rpm": 2750,
+      "other_components_rpm": 2750,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2500
+    },
+    {
+      "elapsed_seconds": 141.18,
+      "installed_demand_rpm": 3150,
+      "candidate_demand_rpm": 2750,
+      "other_components_rpm": 2750,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2550
+    },
+    {
+      "elapsed_seconds": 146.24,
+      "installed_demand_rpm": 2950,
+      "candidate_demand_rpm": 2750,
+      "other_components_rpm": 2750,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2500
+    },
+    {
+      "elapsed_seconds": 151.27,
+      "installed_demand_rpm": 3150,
+      "candidate_demand_rpm": 2550,
+      "other_components_rpm": 2350,
+      "other_drivers": [
+        "idle floor"
+      ],
+      "candidate_psu_rpm": 2550
+    },
+    {
+      "elapsed_seconds": 156.31,
+      "installed_demand_rpm": 2950,
+      "candidate_demand_rpm": 2750,
+      "other_components_rpm": 2750,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2500
+    },
+    {
+      "elapsed_seconds": 161.34,
+      "installed_demand_rpm": 3750,
+      "candidate_demand_rpm": 2675,
+      "other_components_rpm": 2350,
+      "other_drivers": [
+        "idle floor"
+      ],
+      "candidate_psu_rpm": 2675
+    },
+    {
+      "elapsed_seconds": 166.38,
+      "installed_demand_rpm": 2950,
+      "candidate_demand_rpm": 2500,
+      "other_components_rpm": 2350,
+      "other_drivers": [
+        "idle floor"
+      ],
+      "candidate_psu_rpm": 2500
+    },
+    {
+      "elapsed_seconds": 171.42,
+      "installed_demand_rpm": 2950,
+      "candidate_demand_rpm": 2500,
+      "other_components_rpm": 2350,
+      "other_drivers": [
+        "idle floor"
+      ],
+      "candidate_psu_rpm": 2500
+    },
+    {
+      "elapsed_seconds": 176.47,
+      "installed_demand_rpm": 3750,
+      "candidate_demand_rpm": 2675,
+      "other_components_rpm": 2350,
+      "other_drivers": [
+        "idle floor"
+      ],
+      "candidate_psu_rpm": 2675
+    },
+    {
+      "elapsed_seconds": 181.5,
+      "installed_demand_rpm": 3750,
+      "candidate_demand_rpm": 2750,
+      "other_components_rpm": 2750,
+      "other_drivers": [
+        "GPU"
+      ],
+      "candidate_psu_rpm": 2675
+    }
+  ]
+}

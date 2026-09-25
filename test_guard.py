@@ -73,7 +73,7 @@ class Guards(unittest.TestCase):
         with patch.dict('os.environ',{},clear=True),self.assertRaises(guard.Unsafe):
             guard.probe(FakeHardware(),10,5000)
     def test_control_range_and_ramp(self):
-        for temperature,expected in [(50,4300),(55,4300),(56,4300),(57,4900),(58,5500),(59.75,5500)]:
+        for temperature,expected in [(50,4300),(55,4300),(56,4300),(57,4600),(58,5500),(59.75,5500)]:
             s=sample();s['temps']['Tp0C']=temperature
             self.assertEqual(guard.desired_rpm(s),expected)
     def test_any_sensor_can_raise_fan(self):
@@ -81,7 +81,7 @@ class Guards(unittest.TestCase):
             s=sample();s['temps'][key]=limit-1
             self.assertEqual(guard.desired_rpm(s),5500)
     def test_lower_idle_floor_and_psu_ramp(self):
-        for temp,expected in [(55,3000),(56,3000),(56.5,3625),(57,4250),(57.5,4875),(58,5500)]:
+        for temp,expected in [(55,3000),(56,3000),(56.5,3325),(57,3625),(57.5,4575),(58,5500)]:
             s=sample();s['temps']['Tp0C']=temp
             self.assertEqual(guard.desired_rpm(s,3000),expected)
     def test_cpu_and_gpu_each_raise_cooling_at_low_load(self):
@@ -132,6 +132,23 @@ class Guards(unittest.TestCase):
         for temperature,expected in [(48,2350),(49,2750),(50,3150),(52,3925),(54,4725),(56,5500)]:
             s=sample();s['independent']['nouveau/temp1_input']=temperature
             self.assertEqual(guard.desired_rpm(s,2350),expected)
+    def test_psu_gentler_baseline_and_unchanged_full_cooling(self):
+        for temperature,expected in [(56,2350),(56.25,2550),(56.5,2750),
+                                     (56.75,2950),(57,3150),(57.25,3750),
+                                     (57.5,4325),(57.75,4925),(58,5500),(65,5500)]:
+            s=sample();s['temps']['Tp0C']=temperature
+            with self.subTest(temperature=temperature):
+                self.assertEqual(guard.desired_rpm(s,2350),expected)
+    def test_psu_baseline_quarter_degree_steps_are_at_most_200_rpm(self):
+        requests=[]
+        for temperature in (56,56.25,56.5,56.75,57):
+            s=sample();s['temps']['Tp0C']=temperature
+            requests.append(guard.desired_rpm(s,2350))
+        self.assertTrue(all(0 < b-a <= 200 for a,b in zip(requests,requests[1:])))
+    def test_gpu_demand_still_wins_over_gentler_psu_curve(self):
+        s=sample();s['temps']['Tp0C']=57
+        s['independent']['nouveau/temp1_input']=51
+        self.assertEqual(guard.thermal_demand(s,2350),(3550,['GPU']))
     def test_all_components_retain_maximum_with_quieter_floor(self):
         for key,limit in guard.LIMITS.items():
             s=sample();s['temps'][key]=limit-2
@@ -163,7 +180,7 @@ class PolicyTests(unittest.TestCase):
     def test_cooldown_restarts_for_every_warm_smc_sensor(self):
         for key,limit in guard.LIMITS.items():
             p=guard.Policy();s=sample();p.decide(s,0)
-            s['temps'][key]=limit-(2.75 if key=='Tp0C' else 3)
+            s['temps'][key]=limit-(2.25 if key=='Tp0C' else 3)
             self.assertEqual(p.decide(s,20),'auto')
             s=sample()
             self.assertEqual(p.decide(s,30),'auto')
@@ -175,10 +192,22 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(p.decide(s,0),'auto')
         self.assertEqual(p.decide(s,29),'auto')
         self.assertEqual(p.decide(s,30),'manual')
-        self.assertEqual(guard.desired_rpm(s,2350),3925)
-        p=guard.Policy();s['temps']['Tp0C']=57.25
+        self.assertEqual(guard.desired_rpm(s,2350),3150)
+        p=guard.Policy();s['temps']['Tp0C']=57.75
         self.assertEqual(p.decide(s,0),'auto')
         self.assertEqual(p.decide(s,31),'auto')
+
+    def test_psu_entry_tolerates_baseline_variation_but_requires_full_cooldown(self):
+        p=guard.Policy();s=sample()
+        for t in range(30):
+            s['temps']['Tp0C']=[57,57.25,57.5][t%3]
+            self.assertEqual(p.decide(s,t),'auto')
+        self.assertEqual(p.decide(s,30),'manual')
+        self.assertEqual(guard.desired_rpm(s,2350),4325)
+        for psu in (57.75,58,60):
+            p=guard.Policy();s['temps']['Tp0C']=psu
+            self.assertEqual(p.decide(s,0),'auto')
+            self.assertEqual(p.decide(s,60),'auto')
 
     def test_each_independent_sensor_prevents_warm_takeover(self):
         for key in sample()['independent']:
@@ -210,12 +239,12 @@ class PolicyTests(unittest.TestCase):
         s['temps']['Tp0C']=57
         self.assertEqual(guard.thermal_demand(s,3000),(5500,['TM0P']))
         s['temps']['TM0P']=35
-        self.assertEqual(guard.thermal_demand(s,3000),(4250,['Tp0C']))
+        self.assertEqual(guard.thermal_demand(s,3000),(3625,['Tp0C']))
 
     def test_combined_demands_take_maximum_and_report_ties(self):
         s=sample();s['temps']['TM0P']=47;s['temps']['Tp0C']=57
         s['independent']['coretemp/temp3_input']=50
-        self.assertEqual(guard.thermal_demand(s,3000),(4250,['CPU','TM0P','Tp0C']))
+        self.assertEqual(guard.thermal_demand(s,3000),(4250,['CPU','TM0P']))
         s['independent']['nouveau/temp1_input']=54
         self.assertEqual(guard.thermal_demand(s,3000),(4875,['GPU']))
 

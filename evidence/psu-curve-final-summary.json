@@ -1,0 +1,34 @@
+{
+  "duration_seconds": 181.46,
+  "samples": 37,
+  "manual_samples": 33,
+  "PSU_C": [
+    56.75,
+    57.5
+  ],
+  "GPU_C": [
+    48.0,
+    51.0
+  ],
+  "CPU_C": [
+    38.0,
+    47.0
+  ],
+  "late_actual_rpm": [
+    3567,
+    4645
+  ],
+  "late_actual_mean_rpm": 3993,
+  "late_target_rpm": [
+    3550,
+    4825
+  ],
+  "final_actual_rpm": 4457,
+  "final_target_rpm": 4325,
+  "journal_events": {
+    "control": 21,
+    "control_start": 1,
+    "quiet_mode": 1
+  },
+  "nonzero_smc_fault_flags": []
+}

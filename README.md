@@ -61,7 +61,7 @@ across the machine; CPU utilization is neither sampled nor used as a trigger.
   **the largest request wins**. Cooler components cannot cancel a hotter
   component's request. This compares demand relative to each sensor's curve,
   not raw temperatures across unrelated components.
-- The existing conservative thermal curves are unchanged:
+- Full-cooling temperatures remain unchanged:
 
   | Sensor | Start increasing above floor | Full 5500 RPM request |
   | --- | ---: | ---: |
@@ -72,8 +72,11 @@ across the machine; CPU utilization is neither sampled nor used as a trigger.
   | Drive-proximity TH0P/TH0p | 38 C | 40 C |
   | Every other required SMC channel | LIMITS minus 4 C | LIMITS minus 2 C |
 
-  Requests interpolate linearly between the endpoints and round upward to
-  25 RPM. These are precautionary custom intervention settings, **not verified
+  PSU requests use a gentler first segment: 2350 RPM at 56 C, 3150 at 57 C,
+  then a steeper rise to 5500 at 58 C with the installed floor. Other curves
+  interpolate linearly between their endpoints. Requests round upward to
+  25 RPM. See [PSU curve adjustment](research/PSU-CURVE.md).
+  These are precautionary custom intervention settings, **not verified
   component damage limits or Apple's original fan curve**. Proximity sensors
   do not necessarily measure a component's hottest internal point.
 - Full cooling stays in manual mode while the controller is healthy. Even
@@ -81,7 +84,7 @@ across the machine; CPU utilization is neither sampled nor used as a trigger.
   can still request maximum cooling.
 - Startup stays automatic. Quiet-mode entry requires 30 continuous seconds
   with CPU below 50 C, GPU below 52 C, and SMC channels at least 4 C below
-  their cutoffs, except PSU: its entry margin is 3 C (no higher than 57 C).
+  their cutoffs, except PSU: its entry margin is 2.5 C (no higher than 57.5 C).
   PSU still requests full cooling at 58 C. The workaround takes
   over only if firmware still requests at least 5300 RPM and actual speed is
   at least 5200 RPM. Otherwise it leaves firmware control alone.

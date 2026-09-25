@@ -37,7 +37,7 @@ Type: firsthand owner observations. Date: 2011-05-31.
 - Hot-room PSU reading 140–150 F = 60.0–65.6 C; room 90 F = 32.2 C; fan about 2500 RPM.
 - CPU 160 F = 71.1 C and reported heatsink 178 F = 81.1 C.
 
-Limitations: Single owner, unverified sensor accuracy; not a safe-temperature specification or population average.
+Limitations: Single owner, unverified sensor accuracy and an external fan blowing across the case; not a safe-temperature specification or population average.
 
 ## S4 — Macs Fan Control issue 214 — Macmini4,1 diagnostic dump
 

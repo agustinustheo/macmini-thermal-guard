@@ -1,5 +1,7 @@
 # Quieter profile: validation
 
+Historical validation before the subsequent [PSU curve adjustment](../research/PSU-CURVE.md).
+
 The installed controller and unit match the tested repository source. The
 controller SHA-256 is
 `b5a90a78bb0b28ee53696568f1a67e6013597f480937a79d6151fa9a2db97c3b`.
