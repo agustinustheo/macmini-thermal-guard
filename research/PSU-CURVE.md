@@ -1,5 +1,10 @@
 # Gentler PSU baseline curve
 
+**Historical record:** the broader PSU table is now installed. See the
+[current profile](WIDE-PSU-PROFILE.md); statements below about an uninstalled
+candidate or a 58 C PSU full-cooling trigger describe the earlier state.
+
+
 The Tp0C channel has been observed around 56–57 C. The previous straight ramp
 from 56 to 58 C increased the request by roughly 400 RPM per 0.25 C at the
 2350 RPM floor. This adjustment reduces that sensitivity below 57 C, without

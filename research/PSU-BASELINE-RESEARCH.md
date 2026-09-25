@@ -1,5 +1,10 @@
 # PSU baseline, normal fan speed, and quieter curve assessment
 
+**Historical record:** the broader PSU table is now installed. See the
+[current profile](WIDE-PSU-PROFILE.md); statements below about an uninstalled
+candidate or a 58 C PSU full-cooling trigger describe the earlier state.
+
+
 Research checked 2026-09-26. Model scope: Macmini4,1, Mid-2010. This document
 distinguishes firsthand observations from manufacturer limits and proposed
 custom settings. It supplements the retained source notes and thermal audit.

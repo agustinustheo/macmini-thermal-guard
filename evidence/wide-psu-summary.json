@@ -1,0 +1,46 @@
+{
+  "duration_seconds": 963.22,
+  "samples": 192,
+  "post_settling_duration_seconds": 903.22,
+  "post_settling_samples": 180,
+  "post_settling_manual_samples": 180,
+  "CPU_C": [
+    40.0,
+    54.0
+  ],
+  "GPU_C": [
+    50.0,
+    55.0
+  ],
+  "PSU_C": [
+    57.25,
+    58.25
+  ],
+  "actual_rpm": [
+    3144,
+    5122
+  ],
+  "mean_actual_rpm": 3837,
+  "target_rpm": [
+    3150,
+    5200
+  ],
+  "drivers": {
+    "CPU": 8,
+    "GPU": 176
+  },
+  "final_actual_rpm": 4076,
+  "final_target_rpm": 3975,
+  "journal_events": {
+    "control_start": 1,
+    "control": 99,
+    "quiet_mode": 1
+  },
+  "nonzero_fault_flags": [],
+  "service": {
+    "NRestarts": "0",
+    "ActiveState": "active",
+    "UnitFileState": "enabled"
+  },
+  "controller_sha256": "22cd4b972048d45dc92713ec6b5313f2d9aeb9f7fccc3b83f3b1de8c010c333c"
+}

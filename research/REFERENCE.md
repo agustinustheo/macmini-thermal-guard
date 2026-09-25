@@ -1,5 +1,10 @@
 # Macmini4,1 thermal reference and current policy
 
+**Current PSU update:** the [gradual PSU table](WIDE-PSU-PROFILE.md) is installed,
+with full PSU cooling at 62 C and unchanged PSU shutdown at 65/70 C.
+Earlier profile descriptions below retain their historical context.
+
+
 **2026-09-26 operating update:** after the audit, the unchanged controller was resumed
 and automatic startup was enabled. Both were
 verified after reboot. This does not resolve the unexplained firmware request
@@ -68,7 +73,7 @@ Temperature alone does not hand off to auto while already in manual mode.
 | --- | ---: | ---: |
 | Highest CPU core/diode | 45 C | 55 C |
 | Independent GPU | 48 C | 56 C |
-| PSU Tp0C | 56 C | 58 C |
+| PSU Tp0C | 56 C | 62 C |
 | Other required SMC sensors | LIMITS minus 4 C | LIMITS minus 2 C |
 
 All these intervention temperatures are precautionary custom settings. They
@@ -79,20 +84,23 @@ The implemented calculation is:
 
 - CPU thermal request = floor + (5500-floor) * clamp((CPU_C-45)/10, 0, 1).
 - GPU thermal request = floor + (5500-floor) * clamp((GPU_C-48)/8, 0, 1).
-- For each SMC sensor: floor + (5500-floor) * clamp((T-(LIMIT-4))/2, 0, 1).
+- PSU: interpolate the [installed table](WIDE-PSU-PROFILE.md), respecting the configured floor.
+- For each other SMC sensor: floor + (5500-floor) * clamp((T-(LIMIT-4))/2, 0, 1).
 - Take the maximum of all temperature requests; round up
   to 25 RPM, cap at 5500, and apply the downward slew limit.
 
-Examples with otherwise cool sensors: CPU 50 C, GPU 52 C, or PSU 57 C each
-requests 3925 RPM with the 2350 RPM floor (4250 with the previous 3000 floor).
+Examples with otherwise cool sensors: CPU 50 C or GPU 52 C requests 3925 RPM
+with the 2350 RPM floor (4250 with a 3000 floor). PSU 57 C requests 2550 RPM
+with the installed floor; a higher configured floor takes precedence.
 Memory-labelled TM0P or TM0p at 48 C requests 5500 RPM
 even if the CPU is only 40 C. These calculate our custom policy, not Apple's
 original controller. CPU percentage no longer changes fan requests.
 
 The service starts in auto and qualifies cool temperatures for 30 seconds
 before taking control: CPU below 50 C, GPU below 52 C, and all SMC channels
-at least 4 C below LIMITS, except PSU's 3 C entry margin (<=57 C). It only takes
-over a near-maximum firmware request. Full-cooling thresholds are unchanged.
+at least 4 C below LIMITS, except PSU's 2 C entry margin (<=58 C). It only takes
+over a near-maximum firmware request. PSU full cooling is now 62 C; the other
+full-cooling thresholds are unchanged.
 Missing/invalid sensors, SMC faults, fan-tracking failure, service shutdown
 or watchdog expiry still restore auto as an emergency fallback. Software
 cannot reliably identify every plausible-but-incorrect reading or prevent

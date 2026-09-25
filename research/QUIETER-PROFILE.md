@@ -1,5 +1,10 @@
 # Quieter floor with controlled thermal shutdown
 
+**Historical record:** the broader PSU table is now installed. See the
+[current profile](WIDE-PSU-PROFILE.md); statements below about an uninstalled
+candidate or a 58 C PSU full-cooling trigger describe the earlier state.
+
+
 **Historical profile validation:** the PSU curve was subsequently refined; see
 [PSU-CURVE.md](PSU-CURVE.md) for current PSU requests. Other curves and all
 full-cooling and shutdown thresholds below remain unchanged.

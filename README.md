@@ -4,7 +4,8 @@ Published evidence is anonymized; see [PRIVACY.md](PRIVACY.md) for scope,
 authorship exceptions, and handling of private diagnostic records.
 
 **Operating status, 2026-09-26: running and enabled at boot.** The quieter profile
-uses a 2350 RPM floor and includes controlled shutdown for critical temperatures.
+uses a 2350 RPM floor, the [gradual PSU table](research/WIDE-PSU-PROFILE.md),
+and controlled shutdown for critical temperatures.
 Automatic startup was verified before this profile update. The maximum firmware fan request
 remains unexplained; resuming the workaround does not resolve the safety gaps
 identified by the [thermal audit](evidence/thermal-audit-20260925T1705Z/REPORT.md).
@@ -53,29 +54,30 @@ The installed idle floor is **2350 RPM**. Fan speed depends on temperatures
 across the machine; CPU utilization is neither sampled nor used as a trigger.
 
 - Configurable manual floor: **2350–4300 RPM**, with up to **5500 RPM** cooling.
-  The reduction from the previous floor is at most 650 RPM and tapers to zero
-  at the unchanged full-cooling thresholds. Actual speed can rise as the
+  The PSU uses its own gradual table, reaching full cooling at 62 C. Other
+  component curves retain their previous settings. Actual speed can rise as
   components warm; this is not a fixed 2350 RPM cap.
 - Requires 21 named SMC channels, both independent CPU core readings, and the
   independent GPU reading. Each sensor contributes its own cooling request;
   **the largest request wins**. Cooler components cannot cancel a hotter
   component's request. This compares demand relative to each sensor's curve,
   not raw temperatures across unrelated components.
-- Full-cooling temperatures remain unchanged:
+- Current temperature curves:
 
   | Sensor | Start increasing above floor | Full 5500 RPM request |
   | --- | ---: | ---: |
   | Highest CPU core/diode | 45 C | 55 C |
   | Independent GPU | 48 C | 56 C |
-  | PSU-labelled Tp0C | 56 C | 58 C |
+  | PSU-labelled Tp0C | 56 C | 62 C |
   | Memory-labelled TM0P/TM0p | 46 C | 48 C |
   | Drive-proximity TH0P/TH0p | 38 C | 40 C |
   | Every other required SMC channel | LIMITS minus 4 C | LIMITS minus 2 C |
 
-  PSU requests use a gentler first segment: 2350 RPM at 56 C, 3150 at 57 C,
-  then a steeper rise to 5500 at 58 C with the installed floor. Other curves
-  interpolate linearly between their endpoints. Requests round upward to
-  25 RPM. See [PSU curve adjustment](research/PSU-CURVE.md).
+  PSU requests follow the installed table: 2350 at 56 C, 2550 at 57 C, 3000
+  at 58 C, 3600 at 59 C, 4300 at 60 C, 4900 at 61 C and 5500 at 62 C.
+  Values interpolate linearly between adjacent points. Other curves keep their
+  linear endpoints. Requests round upward to 25 RPM. See the
+  [gradual PSU profile](research/WIDE-PSU-PROFILE.md).
   These are precautionary custom intervention settings, **not verified
   component damage limits or Apple's original fan curve**. Proximity sensors
   do not necessarily measure a component's hottest internal point.
@@ -84,8 +86,8 @@ across the machine; CPU utilization is neither sampled nor used as a trigger.
   can still request maximum cooling.
 - Startup stays automatic. Quiet-mode entry requires 30 continuous seconds
   with CPU below 50 C, GPU below 52 C, and SMC channels at least 4 C below
-  their cutoffs, except PSU: its entry margin is 2.5 C (no higher than 57.5 C).
-  PSU still requests full cooling at 58 C. The workaround takes
+  their cutoffs, except PSU: its entry margin is 2 C (no higher than 58 C).
+  PSU now requests full cooling at 62 C. The workaround takes
   over only if firmware still requests at least 5300 RPM and actual speed is
   at least 5200 RPM. Otherwise it leaves firmware control alone.
 - Status and journal entries identify the sensor(s) driving the thermal request

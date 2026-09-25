@@ -30,9 +30,16 @@ LIMITS = {
 # Lowest supervised workaround floor; still above this model's 1800 RPM minimum.
 MIN_MANUAL_RPM = 2350
 
+# Operator-selected PSU table, not manufacturer ratings. Other SMC curves
+# retain their existing endpoints; the full-cooling map also drives status.
+PSU_CURVE = ((56, 2350), (57, 2550), (58, 3000), (59, 3600),
+             (60, 4300), (61, 4900), (62, 5500))
+FULL_COOLING = {key: limit - 2 for key, limit in LIMITS.items()}
+FULL_COOLING['Tp0C'] = PSU_CURVE[-1][0]
+
 # Precautionary shutdown policy, not manufacturer damage limits. Proximity
 # channels cannot be treated as CPU junction temperatures. Keep full cooling
-# thresholds in LIMITS/thermal_demand lower than every shutdown threshold.
+# thresholds in FULL_COOLING/thermal_demand lower than every shutdown threshold.
 SHUTDOWN_LIMITS = {
     'TA0P': 45, 'TC0D': 70, 'TC0H': 65, 'TC0P': 65, 'TC0p': 65,
     'TH0P': 55, 'TH0p': 55, 'TM0P': 60, 'TM0p': 60,
@@ -213,6 +220,16 @@ def restore():
         raise Unsafe('; '.join(errors))
 
 
+def psu_rpm(temperature):
+    """Interpolate the PSU-only table; sensor validation happens in the caller."""
+    if temperature <= PSU_CURVE[0][0]:
+        return PSU_CURVE[0][1]
+    for (lower, low_rpm), (upper, high_rpm) in zip(PSU_CURVE, PSU_CURVE[1:]):
+        if temperature <= upper:
+            return low_rpm + (temperature - lower) * (high_rpm - low_rpm) / (upper - lower)
+    return PSU_CURVE[-1][1]
+
+
 def thermal_demand(snapshot, minimum=4300):
     """Return the strongest per-sensor request and the channels driving it.
 
@@ -223,21 +240,17 @@ def thermal_demand(snapshot, minimum=4300):
     if not MIN_MANUAL_RPM <= minimum <= 4300:
         raise Unsafe('Invalid fan floor')
     fractions = {k: (snapshot['temps'][k] - (limit-4))/2
-                 for k, limit in LIMITS.items()}
-    # Tp0C often hovers at 56–57 C. Use only the first quarter of the
-    # cooling range there, then ramp more strongly to the unchanged 58 C
-    # maximum. This is a custom noise tradeoff, not a PSU temperature rating.
-    psu_rise = snapshot['temps']['Tp0C'] - 56
-    fractions['Tp0C'] = (psu_rise / 4 if psu_rise <= 1
-                         else 0.25 + (psu_rise - 1) * 0.75)
+                 for k, limit in LIMITS.items() if k != 'Tp0C'}
     fractions['CPU'] = (max(snapshot['temps']['TC0D'], *(v for k,v in
         snapshot['independent'].items() if k.startswith('coretemp/'))) - 45)/10
     fractions['GPU'] = (max(v for k,v in snapshot['independent'].items()
                            if k.startswith('nouveau/')) - 48)/8
-    fractions = {k: min(1, max(0, v)) for k,v in fractions.items()}
-    strongest = max(fractions.values())
-    drivers = sorted(k for k,v in fractions.items() if v == strongest) if strongest > 0 else ['idle floor']
-    rpm = min(5500, math.ceil((minimum + strongest*(5500-minimum))/25)*25)
+    requests = {k: minimum + min(1, max(0, v))*(5500-minimum)
+                for k,v in fractions.items()}
+    requests['Tp0C'] = max(minimum, psu_rpm(snapshot['temps']['Tp0C']))
+    strongest = max(requests.values())
+    drivers = sorted(k for k,v in requests.items() if v == strongest) if strongest > minimum else ['idle floor']
+    rpm = min(5500, math.ceil(strongest/25)*25)
     return rpm, drivers
 
 
@@ -266,15 +279,15 @@ class Policy:
         check(snap, enforce_cutoffs=False)
         cores = [v for k,v in snap['independent'].items() if k.startswith('coretemp/')]
         cpu_temp = max(*cores, snap['temps']['TC0D'])
-        margin = min(LIMITS[k] - snap['temps'][k] for k in LIMITS)
         gpu_temp = max(v for k,v in snap['independent'].items() if k.startswith('nouveau/'))
-        hot = cpu_temp >= 55 or gpu_temp >= 56 or margin <= 2
+        hot = cpu_temp >= 55 or gpu_temp >= 56 or any(
+            snap['temps'][k] >= threshold for k, threshold in FULL_COOLING.items())
         if self.mode == 'manual':
             self.reason = 'Temperature override: maximum manual cooling' if hot else 'All-component temperature curve'
             return self.mode
         # Permit the PSU's stable warm baseline to enter temperature control.
-        # This does not change its 58 C full-cooling or 65 C shutdown thresholds.
-        entry_margins_ok = all(LIMITS[k] - snap['temps'][k] >= (2.5 if k == 'Tp0C' else 4)
+        # Entry <=58 C uses the table's 3000 RPM point; full cooling is 62 C.
+        entry_margins_ok = all(LIMITS[k] - snap['temps'][k] >= (2 if k == 'Tp0C' else 4)
                                for k in LIMITS)
         cool = cpu_temp < 50 and gpu_temp < 52 and entry_margins_ok
         # Do not override normal automatic cooling if firmware is no longer

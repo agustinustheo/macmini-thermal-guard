@@ -1,5 +1,10 @@
 # PSU curve adjustment validation
 
+**Historical record:** the broader PSU table is now installed. See the
+[current profile](../research/WIDE-PSU-PROFILE.md); statements below about an uninstalled
+candidate or a 58 C PSU full-cooling trigger describe the earlier state.
+
+
 The installed curve uses a gentler 56–57 C PSU segment, then reaches the
 unchanged 5500 RPM request at 58 C. The floor is still 2350 RPM. CPU/GPU/other
 sensor curves, critical-temperature poweroff, readback, watchdog and fault
