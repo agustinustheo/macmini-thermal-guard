@@ -7,7 +7,7 @@ Before=sleep.target
 [Service]
 Type=notify
 ExecStartPre=/usr/bin/python3 /usr/local/lib/macmini-thermal-guard/guard.py wait
-ExecStart=/usr/bin/python3 /usr/local/lib/macmini-thermal-guard/guard.py control --min-rpm 3000
+ExecStart=/usr/bin/python3 /usr/local/lib/macmini-thermal-guard/guard.py control --min-rpm 2350
 ExecStopPost=/usr/bin/python3 /usr/local/lib/macmini-thermal-guard/guard.py restore
 WatchdogSec=8s
 WatchdogSignal=SIGTERM

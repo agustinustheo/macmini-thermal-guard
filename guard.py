@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import signal
 import socket
+import subprocess
 import sys
 import time
 
@@ -25,6 +26,66 @@ LIMITS = {
     'TN1D': 60, 'TN1E': 60, 'TN1F': 60, 'TN1S': 60,
     'TO0P': 42, 'TO0p': 42, 'TW0P': 48, 'Tm0P': 45, 'Tp0C': 60,
 }
+
+# Lowest supervised workaround floor; still above this model's 1800 RPM minimum.
+MIN_MANUAL_RPM = 2350
+
+# Precautionary shutdown policy, not manufacturer damage limits. Proximity
+# channels cannot be treated as CPU junction temperatures. Keep full cooling
+# thresholds in LIMITS/thermal_demand lower than every shutdown threshold.
+SHUTDOWN_LIMITS = {
+    'TA0P': 45, 'TC0D': 70, 'TC0H': 65, 'TC0P': 65, 'TC0p': 65,
+    'TH0P': 55, 'TH0p': 55, 'TM0P': 60, 'TM0p': 60,
+    'TN0D': 70, 'TN0P': 65, 'TN0p': 65,
+    'TN1D': 75, 'TN1E': 75, 'TN1F': 75, 'TN1S': 75,
+    'TO0P': 55, 'TO0p': 55, 'TW0P': 60, 'Tm0P': 60, 'Tp0C': 65,
+    'CPU': 70, 'GPU': 75,
+}
+EMERGENCY_LIMITS = {key: value + 5 for key, value in SHUTDOWN_LIMITS.items()}
+EMERGENCY_LIMITS.update(CPU=85, TC0D=85, GPU=90)
+
+
+class ThermalShutdown:
+    """Latch a shutdown after 10 continuous hot seconds, or immediately higher."""
+    def __init__(self):
+        self.hot_since = {}
+        self.reasons = []
+
+    def update(self, snapshot, now):
+        if self.reasons:
+            return self.reasons
+        check(snapshot, enforce_cutoffs=False, check_fan=False)
+        values = dict(snapshot['temps'])
+        values['CPU'] = max(snapshot['temps']['TC0D'], *(v for k, v in
+            snapshot['independent'].items() if k.startswith('coretemp/')))
+        values['GPU'] = max(v for k, v in snapshot['independent'].items()
+                            if k.startswith('nouveau/'))
+        for key, threshold in SHUTDOWN_LIMITS.items():
+            value = values[key]
+            if value >= EMERGENCY_LIMITS[key]:
+                self.reasons.append(f'{key} {value} C >= emergency {EMERGENCY_LIMITS[key]} C')
+            if value >= threshold:
+                if snapshot['rpm'] < snapshot['minimum'] - 250:
+                    self.reasons.append(f'{key} >= {threshold} C with inadequate fan RPM')
+                self.hot_since.setdefault(key, now)
+                if now - self.hot_since[key] >= 10:
+                    self.reasons.append(f'{key} >= {threshold} C for 10 seconds')
+            else:
+                self.hot_since.pop(key, None)
+        return self.reasons
+
+
+def request_poweroff(reasons):
+    """Request an orderly poweroff; never force power loss or reboot."""
+    emit('critical_temperature', reasons=reasons)
+    try:
+        subprocess.run(['/usr/bin/systemctl', '--no-block', 'poweroff'],
+                       check=True, timeout=3, capture_output=True, text=True)
+    except (OSError, subprocess.SubprocessError) as exc:
+        emit('poweroff_request_failed', error=str(exc))
+        return False
+    emit('poweroff_requested', reasons=reasons)
+    return True
 
 
 class Unsafe(RuntimeError):
@@ -106,7 +167,7 @@ class Hardware:
         return result
 
 
-def check(snapshot, baseline=None, enforce_cutoffs=True):
+def check(snapshot, baseline=None, enforce_cutoffs=True, check_fan=True):
     if snapshot['maximum'] != 5500 or snapshot['minimum'] != 1800:
         raise Unsafe('Unexpected fan limits')
     for label, limit in LIMITS.items():
@@ -125,7 +186,11 @@ def check(snapshot, baseline=None, enforce_cutoffs=True):
         rise_limit = 12 if label.startswith('coretemp/') else 8
         if baseline and value - baseline['independent'][label] >= rise_limit:
             raise Unsafe(f'{label}: excessive temperature rise ({value} C)')
-    if not (2750 if snapshot['manual'] else 1500) <= snapshot['rpm'] <= 5800:
+    # A higher target can precede physical acceleration from the quiet floor.
+    # Enforce the supported floor here; control() separately checks tracking
+    # against the target after its existing 15-second acceleration allowance.
+    minimum_actual = MIN_MANUAL_RPM - 250 if snapshot['manual'] else 1500
+    if check_fan and not minimum_actual <= snapshot['rpm'] <= 5800:
         raise Unsafe(f"Fan speed outside experiment range: {snapshot['rpm']}")
 
 
@@ -155,7 +220,7 @@ def thermal_demand(snapshot, minimum=4300):
     Each sensor contributes independently, regardless of CPU utilization.
     """
     check(snapshot, enforce_cutoffs=False)
-    if not 3000 <= minimum <= 4300:
+    if not MIN_MANUAL_RPM <= minimum <= 4300:
         raise Unsafe('Invalid fan floor')
     fractions = {k: (snapshot['temps'][k] - (limit-4))/2
                  for k, limit in LIMITS.items()}
@@ -201,7 +266,11 @@ class Policy:
         if self.mode == 'manual':
             self.reason = 'Temperature override: maximum manual cooling' if hot else 'All-component temperature curve'
             return self.mode
-        cool = cpu_temp < 50 and gpu_temp < 52 and margin >= 4
+        # Permit the PSU's stable warm baseline to enter temperature control.
+        # This does not change its 58 C full-cooling or 65 C shutdown thresholds.
+        entry_margins_ok = all(LIMITS[k] - snap['temps'][k] >= (3 if k == 'Tp0C' else 4)
+                               for k in LIMITS)
+        cool = cpu_temp < 50 and gpu_temp < 52 and entry_margins_ok
         # Do not override normal automatic cooling if firmware is no longer
         # asking for close to maximum. This workaround is for the 5500 RPM case.
         needs_override = snap['target'] >= 5300 and snap['rpm'] >= 5200
@@ -219,8 +288,8 @@ class Policy:
 
 
 def control(hw, minimum=4300):
-    if not 3000 <= minimum <= 4300:
-        raise Unsafe('Manual floor must be 3000–4300 RPM')
+    if not MIN_MANUAL_RPM <= minimum <= 4300:
+        raise Unsafe(f'Manual floor must be {MIN_MANUAL_RPM}–4300 RPM')
     if os.geteuid() != 0 or not os.environ.get('INVOCATION_ID'):
         raise Unsafe('Control requires systemd supervision')
     watchdog = int(os.environ.get('WATCHDOG_USEC', '0'))
@@ -243,11 +312,30 @@ def control(hw, minimum=4300):
     logged = 0
     mode = 'auto'
     policy = Policy()
+    shutdown = ThermalShutdown()
+    poweroff_accepted = False
+    next_poweroff_attempt = 0
     try:
         notify('READY=1\nWATCHDOG=1\nSTATUS=Automatic mode; watching all component temperatures')
         while True:
             time.sleep(1)
-            snap = hw.snapshot()
+            if not shutdown.reasons:
+                snap = hw.snapshot()
+                shutdown.update(snap, time.monotonic())
+            critical = shutdown.reasons
+            if critical:
+                # Shutdown must still be attempted if the cooling write fails.
+                # Once latched, never resume a reduced fan target in this run.
+                try:
+                    hw.write('fan1_output', baseline['maximum'])
+                    target = baseline['maximum']
+                except OSError as exc:
+                    emit('critical_cooling_write_failed', error=str(exc))
+                if not poweroff_accepted and time.monotonic() >= next_poweroff_attempt:
+                    poweroff_accepted = request_poweroff(critical)
+                    next_poweroff_attempt = time.monotonic() + 10
+                notify('WATCHDOG=1\nSTATUS=Critical temperature; maximum cooling and poweroff requested')
+                continue
             check(snap, enforce_cutoffs=False)
             faults = hw.faults()
             if any(faults.values()):
