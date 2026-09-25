@@ -5,7 +5,11 @@ authorship exceptions, and handling of private diagnostic records.
 
 **Operating status, 2026-09-26: running and enabled at boot.** The quieter profile
 uses a 2350 RPM floor, the [gradual PSU table](research/WIDE-PSU-PROFILE.md),
+the [wider CPU/GPU ramps](research/CPU-GPU-PROFILE.md),
 and controlled shutdown for critical temperatures.
+The latest [deployment observation](evidence/CPU-GPU-VALIDATION.md) stayed in
+automatic mode while startup temperatures failed to qualify; lower-airflow
+hardware validation of the new CPU/GPU curves remains pending.
 Automatic startup was verified before this profile update. The maximum firmware fan request
 remains unexplained; resuming the workaround does not resolve the safety gaps
 identified by the [thermal audit](evidence/thermal-audit-20260925T1705Z/REPORT.md).
@@ -54,8 +58,8 @@ The installed idle floor is **2350 RPM**. Fan speed depends on temperatures
 across the machine; CPU utilization is neither sampled nor used as a trigger.
 
 - Configurable manual floor: **2350–4300 RPM**, with up to **5500 RPM** cooling.
-  The PSU uses its own gradual table, reaching full cooling at 62 C. Other
-  component curves retain their previous settings. Actual speed can rise as
+  The PSU uses its own gradual table, reaching full cooling at 62 C. The
+  CPU/GPU ramps now use separate idle and full-speed endpoints. Actual speed can rise as
   components warm; this is not a fixed 2350 RPM cap.
 - Requires 21 named SMC channels, both independent CPU core readings, and the
   independent GPU reading. Each sensor contributes its own cooling request;
@@ -66,12 +70,17 @@ across the machine; CPU utilization is neither sampled nor used as a trigger.
 
   | Sensor | Start increasing above floor | Full 5500 RPM request |
   | --- | ---: | ---: |
-  | Highest CPU core/diode | 45 C | 55 C |
-  | Independent GPU | 48 C | 56 C |
+  | Highest CPU core/diode | 50 C | 68 C |
+  | Independent GPU / MCP internal die TN1D | 55 C | 72 C |
   | PSU-labelled Tp0C | 56 C | 62 C |
   | Memory-labelled TM0P/TM0p | 46 C | 48 C |
   | Drive-proximity TH0P/TH0p | 38 C | 40 C |
-  | Every other required SMC channel | LIMITS minus 4 C | LIMITS minus 2 C |
+  | CPU heatsink/proximity TC0H/P/p | 45 C | 60 C |
+  | MCP die TN0D | 50 C | 65 C |
+  | MCP proximity TN0P/p | 42 C | 58 C |
+  | Related TN1E (location uncertain) | 55 C | 70 C |
+  | Related TN1F/S (locations uncertain) | 58 C | 72 C |
+  | Remaining required SMC channels | LIMITS minus 4 C | LIMITS minus 2 C |
 
   PSU requests follow the installed table: 2350 at 56 C, 2550 at 57 C, 3000
   at 58 C, 3600 at 59 C, 4300 at 60 C, 4900 at 61 C and 5500 at 62 C.
@@ -85,8 +94,9 @@ across the machine; CPU utilization is neither sampled nor used as a trigger.
   100% CPU activity does not trigger automatic handoff; actual temperatures
   can still request maximum cooling.
 - Startup stays automatic. Quiet-mode entry requires 30 continuous seconds
-  with CPU below 50 C, GPU below 52 C, and SMC channels at least 4 C below
-  their cutoffs, except PSU: its entry margin is 2 C (no higher than 58 C).
+  with CPU no higher than 54 C, GPU no higher than 57 C, and every SMC
+  reading within its separate `ENTRY_MAX` ceiling (PSU no higher than 58 C).
+  All entry ceilings remain below the original probe cutoffs.
   PSU now requests full cooling at 62 C. The workaround takes
   over only if firmware still requests at least 5300 RPM and actual speed is
   at least 5200 RPM. Otherwise it leaves firmware control alone.
@@ -128,7 +138,8 @@ at or above its component-specific shutdown threshold for 10 continuous seconds:
 Every required SMC channel is covered; the complete table is in
 [the profile reference](research/QUIETER-PROFILE.md). These are deliberately
 precautionary operating cutoffs, not verified component damage limits.
-Cooling reaches 5500 RPM well before these thresholds. A valid critical reading
+Cooling requests 5500 RPM below these thresholds (CPU by 2 C, GPU by 3 C).
+The numeric margins do not guarantee cooling or shutdown response time. A valid critical reading
 with grossly inadequate fan RPM also requests poweroff immediately.
 
 Once triggered, shutdown remains latched even if temperatures fall. The controller

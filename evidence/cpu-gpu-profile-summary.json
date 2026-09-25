@@ -1,0 +1,56 @@
+{
+  "duration_seconds": 606.05,
+  "samples": 121,
+  "manual_samples": 0,
+  "first_manual_seconds": null,
+  "settled_manual_samples": 0,
+  "all_samples": {
+    "actual_rpm": {
+      "min": 5476,
+      "max": 5527,
+      "mean": 5498.87
+    },
+    "target_rpm": {
+      "min": 5500,
+      "max": 5500,
+      "mean": 5500
+    },
+    "cpu_c": {
+      "min": 39.5,
+      "max": 59.0,
+      "mean": 49.32
+    },
+    "gpu_c": {
+      "min": 49.0,
+      "max": 59.0,
+      "mean": 54.42
+    },
+    "psu_c": {
+      "min": 57.5,
+      "max": 59.25,
+      "mean": 58.29
+    }
+  },
+  "settled_manual": null,
+  "service_events": {
+    "control_start": 1,
+    "control": 58
+  },
+  "fault_samples": 59,
+  "nonzero_fault_samples": 0,
+  "final": {
+    "rpm": 5492,
+    "target": 5500,
+    "manual": 0,
+    "demand": 3000,
+    "drivers": [
+      "Tp0C"
+    ],
+    "independent": {
+      "nouveau/temp1_input": 49.0,
+      "coretemp/temp2_input": 40.0,
+      "coretemp/temp3_input": 40.0
+    }
+  },
+  "final_psu_c": 58.0
+}

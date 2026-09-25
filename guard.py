@@ -30,12 +30,33 @@ LIMITS = {
 # Lowest supervised workaround floor; still above this model's 1800 RPM minimum.
 MIN_MANUAL_RPM = 2350
 
-# Operator-selected PSU table, not manufacturer ratings. Other SMC curves
-# retain their existing endpoints; the full-cooling map also drives status.
+# Custom operating curves, not manufacturer ratings. CPU/MCP proximity and
+# heatsink channels keep lower endpoints than junction/die channels.
+CPU_CURVE = (50, 68)
+GPU_CURVE = (55, 72)
+SMC_CURVES = {key: (limit - 4, limit - 2) for key, limit in LIMITS.items()
+              if key != 'Tp0C'}
+SMC_CURVES.update({
+    'TC0D': CPU_CURVE, 'TC0H': (45, 60),
+    'TC0P': (45, 60), 'TC0p': (45, 60),
+    'TN0D': (50, 65), 'TN0P': (42, 58), 'TN0p': (42, 58),
+    'TN1D': GPU_CURVE,
+    # These related channels remain independently monitored. Their exact
+    # physical locations are undocumented; do not call them GPU junctions.
+    'TN1E': (55, 70), 'TN1F': (58, 72), 'TN1S': (58, 72),
+})
 PSU_CURVE = ((56, 2350), (57, 2550), (58, 3000), (59, 3600),
              (60, 4300), (61, 4900), (62, 5500))
-FULL_COOLING = {key: limit - 2 for key, limit in LIMITS.items()}
+FULL_COOLING = {key: curve[1] for key, curve in SMC_CURVES.items()}
 FULL_COOLING['Tp0C'] = PSU_CURVE[-1][0]
+# Startup remains below every original probe cutoff. These are takeover
+# limits, not the temperature at which an already-running controller stops.
+ENTRY_MAX = {key: limit - 4 for key, limit in LIMITS.items()}
+ENTRY_MAX.update(TC0D=54, TC0H=47, TC0P=47, TC0p=47,
+                 TN0D=52, TN0P=44, TN0p=44, TN1D=57, TN1E=57,
+                 TN1F=59, TN1S=59, Tp0C=58)
+CPU_ENTRY_MAX = 54
+GPU_ENTRY_MAX = 57
 
 # Precautionary shutdown policy, not manufacturer damage limits. Proximity
 # channels cannot be treated as CPU junction temperatures. Keep full cooling
@@ -239,12 +260,12 @@ def thermal_demand(snapshot, minimum=4300):
     check(snapshot, enforce_cutoffs=False)
     if not MIN_MANUAL_RPM <= minimum <= 4300:
         raise Unsafe('Invalid fan floor')
-    fractions = {k: (snapshot['temps'][k] - (limit-4))/2
-                 for k, limit in LIMITS.items() if k != 'Tp0C'}
+    fractions = {k: (snapshot['temps'][k] - lower)/(upper-lower)
+                 for k, (lower, upper) in SMC_CURVES.items()}
     fractions['CPU'] = (max(snapshot['temps']['TC0D'], *(v for k,v in
-        snapshot['independent'].items() if k.startswith('coretemp/'))) - 45)/10
+        snapshot['independent'].items() if k.startswith('coretemp/'))) - CPU_CURVE[0])/(CPU_CURVE[1]-CPU_CURVE[0])
     fractions['GPU'] = (max(v for k,v in snapshot['independent'].items()
-                           if k.startswith('nouveau/')) - 48)/8
+                           if k.startswith('nouveau/')) - GPU_CURVE[0])/(GPU_CURVE[1]-GPU_CURVE[0])
     requests = {k: minimum + min(1, max(0, v))*(5500-minimum)
                 for k,v in fractions.items()}
     requests['Tp0C'] = max(minimum, psu_rpm(snapshot['temps']['Tp0C']))
@@ -280,16 +301,14 @@ class Policy:
         cores = [v for k,v in snap['independent'].items() if k.startswith('coretemp/')]
         cpu_temp = max(*cores, snap['temps']['TC0D'])
         gpu_temp = max(v for k,v in snap['independent'].items() if k.startswith('nouveau/'))
-        hot = cpu_temp >= 55 or gpu_temp >= 56 or any(
+        hot = cpu_temp >= CPU_CURVE[1] or gpu_temp >= GPU_CURVE[1] or any(
             snap['temps'][k] >= threshold for k, threshold in FULL_COOLING.items())
         if self.mode == 'manual':
             self.reason = 'Temperature override: maximum manual cooling' if hot else 'All-component temperature curve'
             return self.mode
-        # Permit the PSU's stable warm baseline to enter temperature control.
-        # Entry <=58 C uses the table's 3000 RPM point; full cooling is 62 C.
-        entry_margins_ok = all(LIMITS[k] - snap['temps'][k] >= (2 if k == 'Tp0C' else 4)
-                               for k in LIMITS)
-        cool = cpu_temp < 50 and gpu_temp < 52 and entry_margins_ok
+        entry_margins_ok = all(snap['temps'][k] <= limit
+                               for k, limit in ENTRY_MAX.items())
+        cool = cpu_temp <= CPU_ENTRY_MAX and gpu_temp <= GPU_ENTRY_MAX and entry_margins_ok
         # Do not override normal automatic cooling if firmware is no longer
         # asking for close to maximum. This workaround is for the 5500 RPM case.
         needs_override = snap['target'] >= 5300 and snap['rpm'] >= 5200

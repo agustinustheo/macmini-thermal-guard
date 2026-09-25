@@ -1,5 +1,9 @@
 # Installed gradual PSU curve
 
+**CPU/GPU follow-up:** the PSU table below remains installed. The descriptions
+of unchanged CPU/GPU curves and the 51 C GPU example describe this revision
+only; [CPU-GPU-PROFILE.md](CPU-GPU-PROFILE.md) supersedes those settings.
+
 The broader curve proposed in [PSU baseline research](PSU-BASELINE-RESEARCH.md)
 is now installed following an explicit operating decision. It replaces the
 steep 56–58 C PSU curve. These are custom control settings, not Apple ratings

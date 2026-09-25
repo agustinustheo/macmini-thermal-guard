@@ -3,11 +3,12 @@
   "research/SOURCE-NOTES.md": "9411bfe3b80dcf233f43c63616f41f73c710b2d0526985f12a5cbecf60b4747b",
   "research/observations.csv": "b54d87ef9ca2858d0c8888b5b6dff39f7e0b8d9dc658577c4e9fd0ce505e6f13",
   "research/local-snapshot.json": "22c500bf9691653eec6025a838cf3aec8e642be2dd5b2606e2e870c411db3a83",
-  "research/REFERENCE.md": "f131b58a24df657e588a592cdabdea259996811a56e7dfdc43b16cbf8cb65a05",
+  "research/REFERENCE.md": "070bce5683eff3802359aef402034bd98aee1f5721e567080a79c5977701c142",
   "research/sources.json": "55163cccfa850c0b9581eb34671de69f1c6886ff7c8b8810882d0d43591c0006",
   "research/TEMPERATURE-POLICY-PROPOSAL.md": "4d7ea53b9e87a32e04d27d26824984261f267d30ef7533c5551ed50d358fbd0b",
   "research/QUIETER-PROFILE.md": "5a942fb7e9ba0f6d9a195001f7dc5d83ed1f6a8b43b93a8a07ed655a474dd9f6",
   "research/PSU-CURVE.md": "8e7fb4cde544589f7a84e45e1544e438994d9b8c13ceb9b897339410669931e5",
   "research/PSU-BASELINE-RESEARCH.md": "45c7b4ae557143c4a96e649a666261ab951aa714f1114c93472491ddaf28dd44",
-  "research/WIDE-PSU-PROFILE.md": "025b76c612c559fa31b565c4ab61e3ac0c64f087f687e0ff6ce5af7e23fd118d"
+  "research/WIDE-PSU-PROFILE.md": "52849900b25c4af702f2bda6006a3ae7e8a915d16fc11878977a01ee7de00f5f",
+  "research/CPU-GPU-PROFILE.md": "ff74acc7fdb8ba40349ebf5f590aee8adcf52c65978a49a4c5635172cca2f45b"
 }
