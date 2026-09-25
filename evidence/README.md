@@ -26,6 +26,7 @@ to those local artifacts in the report are not all available in a fresh clone.
 - `final-verification.json`: the final recorded service check at that time.
 - `final-build.log`: latest saved test result.
 
-Build logs use `<project>` instead of local project paths.
-Local `before-*` code backup directories are excluded from Git; the repository
-tracks the current implementation and subsequent changes instead.
+Build logs use `<project>` instead of local project paths. Observation timestamps
+are replaced with relative elapsed seconds; temperature and RPM values are
+unchanged. Private diagnostics and superseded local backups are stored outside
+the repository. The repository tracks the implementation and its history.

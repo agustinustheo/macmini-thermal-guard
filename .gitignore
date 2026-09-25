@@ -14,3 +14,15 @@ evidence/thermal-audit-20260925T1705Z/*
 !evidence/thermal-audit-20260925T1705Z/REPORT.md
 !evidence/thermal-audit-20260925T1705Z/summary.json
 !evidence/thermal-audit-20260925T1705Z/repeated-readings.jsonl
+
+# Never publish authentication material or private machine inventories.
+.gnupg/
+.ssh/
+*.asc
+*.pem
+*.key
+*.p12
+*.pfx
+private/
+private-evidence/
+*.bundle

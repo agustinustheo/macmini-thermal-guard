@@ -1,5 +1,8 @@
 # Mac Mini 2010 thermal guard
 
+Published evidence is anonymized; see [PRIVACY.md](PRIVACY.md) for scope,
+authorship exceptions, and handling of private diagnostic records.
+
 **Operating status, 2026-09-26: running and enabled at boot, by explicit operator choice.** The existing controller was re-enabled unchanged and its
 automatic startup was verified after a reboot. The maximum firmware fan request
 remains unexplained; resuming the workaround does not resolve the safety gaps
