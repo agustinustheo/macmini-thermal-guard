@@ -8,3 +8,9 @@ node_modules/
 
 # Local snapshots of superseded code; current source is tracked by Git.
 evidence/before-*/
+
+# Publish thermal evidence; retain host inventories and broad raw logs locally.
+evidence/thermal-audit-20260925T1705Z/*
+!evidence/thermal-audit-20260925T1705Z/REPORT.md
+!evidence/thermal-audit-20260925T1705Z/summary.json
+!evidence/thermal-audit-20260925T1705Z/repeated-readings.jsonl

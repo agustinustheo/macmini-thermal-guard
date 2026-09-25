@@ -1,5 +1,12 @@
 # Mac Mini 2010 thermal guard
 
+**Operating status, 2026-09-26: running and enabled at boot, by explicit operator choice.** The existing controller was re-enabled unchanged and its
+automatic startup was verified after a reboot. The maximum firmware fan request
+remains unexplained; resuming the workaround does not resolve the safety gaps
+identified by the [thermal audit](evidence/thermal-audit-20260925T1705Z/REPORT.md).
+See the [post-reboot check](evidence/POST-REBOOT-CHECK-20260926.md) for current
+measurements and the distinction between operating status and diagnostic clearance.
+
 A conservative **software workaround**, developed on a 2010 Mac mini
 (`Macmini4,1`, Linux). It does not establish or repair the underlying fault.
 Full-speed fan operation was reported before Linux started. Software temperature
@@ -14,8 +21,8 @@ local observations, and eight dated source records preserved for offline use.
 
 See [the temperature-only control and spoken-warning proposal](research/TEMPERATURE-POLICY-PROPOSAL.md)
 for follow-up manufacturer research, whole-system monitoring considerations,
-and alert delivery findings. It is a proposal; the installed policy below has
-not yet been changed to temperature-only control.
+and alert delivery findings. Its temperature-based fan policy is now implemented as described below. Spoken
+alerts were dropped by operator choice; no audio feature was installed.
 
 ## What was established
 
@@ -37,38 +44,47 @@ not yet been changed to temperature-only control.
 ## Current controller
 
 `guard.py control --min-rpm 3000` runs under `macmini-thermal-guard.service`.
-The installed idle floor is **3000 RPM**, with stepped CPU anticipation and
-independent temperature overrides:
+The installed idle floor is **3000 RPM**. Fan speed depends on temperatures
+across the machine; CPU utilization is neither sampled nor used as a trigger.
 
 - Configurable manual floor: **3000–4300 RPM**, with up to **5500 RPM** cooling.
-  The lower floor requires supervised validation before installation; hardware
-  fault flags are never suppressed or cleared.
-- Requires 21 explicitly named SMC temperature channels, both independent
-  CPU core readings, and the independent GPU reading.
-- Each channel has a conservative experiment cutoff in `LIMITS`. These are
-  **not manufacturer specifications**. From 4 C below each cutoff to 2 C below it, cooling ramps from the idle
-  floor to 5500 RPM. Maximum manual cooling is requested at 2 C below any SMC cutoff,
-  CPU 55 C, or GPU 56 C; temperature alone does not hand off to auto. Additional curves increase cooling for CPU
-  temperatures from 45–55 C, GPU temperatures from 48–56 C, and aggregate
-  CPU use through the steps below. Temperature requests can still reach
-  5500 RPM. The highest request wins.
-- **CPU use at least 80%:** return to automatic mode. CPU use is total
-  utilization across both cores, measured over approximately five seconds.
-  CPU temperature is checked separately every second.
-- **Quiet mode:** CPU use below 65% continuously for 30 seconds, CPU below
-  50 C, GPU below 52 C, and all SMC temperatures at least 4 C below their
-  cutoffs. PSU must therefore be no higher than 56 C. If firmware already
-  requests less than 5300 RPM, leave automatic cooling alone.
-- The 65–80% utilization gap prevents constant switching. Each CPU speed
-  step also has a five-percentage-point release gap before stepping down. Load handoffs can recover automatically after cooldown. Thermal
-  overrides retain manual control at maximum speed below 80% CPU. Missing/implausible
-  readings or hardware fault flags stop the service instead.
+- Requires 21 named SMC channels, both independent CPU core readings, and the
+  independent GPU reading. Each sensor contributes its own cooling request;
+  **the largest request wins**. Cooler components cannot cancel a hotter
+  component's request. This compares demand relative to each sensor's curve,
+  not raw temperatures across unrelated components.
+- The existing conservative thermal curves are unchanged:
+
+  | Sensor | Start increasing above floor | Full 5500 RPM request |
+  | --- | ---: | ---: |
+  | Highest CPU core/diode | 45 C | 55 C |
+  | Independent GPU | 48 C | 56 C |
+  | PSU-labelled Tp0C | 56 C | 58 C |
+  | Memory-labelled TM0P/TM0p | 46 C | 48 C |
+  | Drive-proximity TH0P/TH0p | 38 C | 40 C |
+  | Every other required SMC channel | LIMITS minus 4 C | LIMITS minus 2 C |
+
+  Requests interpolate linearly between the endpoints and round upward to
+  25 RPM. These are precautionary custom intervention settings, **not verified
+  component damage limits or Apple's original fan curve**. Proximity sensors
+  do not necessarily measure a component's hottest internal point.
+- Full cooling stays in manual mode while the controller is healthy. Even
+  100% CPU activity does not trigger automatic handoff; actual temperatures
+  can still request maximum cooling.
+- Startup stays automatic. Quiet-mode entry requires 30 continuous seconds
+  with CPU below 50 C, GPU below 52 C, and every SMC channel at least 4 C below
+  its cutoff. PSU must therefore be no higher than 56 C. The workaround takes
+  over only if firmware still requests at least 5300 RPM and actual speed is
+  at least 5200 RPM. Otherwise it leaves firmware control alone.
+- Status and journal entries identify the sensor(s) driving the thermal request
+  (`CPU`, `GPU`, an SMC channel ID, or `idle floor`). During gradual slowdown,
+  the current target may remain above that request.
 - Unknown constant `*G` channels are retained in logs but not assumed to be
   physical-temperature readings. Monitoring them as real 70–90 C sensors
   without a model-specific interpretation would give misleading results.
 - Checks required sensors and fault flags every approximately 1 second.
 - Lowers the target by at most 50 RPM per second, but increases it immediately
-  when needed. Verifies requested cooling after an automatic-mode handoff.
+  when needed. Checks command readback and actual RPM against the manual target.
 - Rejects missing/implausible readings, unexpected model/fan limits,
   loss of control ownership, unexpected target changes, or inadequate fan
   RPM. It cannot reliably detect every plausible-but-wrong sensor reading.
@@ -77,7 +93,7 @@ independent temperature overrides:
   5500 RPM then restores automatic mode. A `finally` handler does the same
   on normal termination or exceptions. No automatic restart after a fault.
 - Starts automatically with Linux, waiting up to 30 seconds for sensor drivers.
-  Starts in automatic mode and first verifies low load/cool temperatures.
+  Starts in automatic mode and first verifies continuously cool temperatures.
 - Stops before system sleep through a conflict with `sleep.target`.
   It does not automatically resume after sleep.
 - No network access or third-party Python dependencies.
@@ -157,10 +173,10 @@ Hardware checks performed:
 2. Bounded 5000, 4500 and 4300 RPM probes succeeded and restored automatic mode.
 3. A deliberately frozen controller process exercised the actual systemd
    watchdog and its independent restoration path.
-4. Simulated load/temperature changes verify handoff, cooldown, recovery, and
+4. Simulated component-temperature changes verify cooldown, recovery, and
    rollback on sensor failure. No heat stress test was used on uncertain hardware.
 
-Final 180.6-second observation: service stayed active; settled fan samples
+Historical initial-controller 180.6-second observation: service stayed active; settled fan samples
 were 4292–4324 RPM, CPU 36–45 C, GPU 46–48 C, PSU 55–56 C. Measured service
 overhead was 0.83% of total two-core CPU capacity and 7.33 MiB RAM. Total
 electrical power was not measured. `pnpm run build` passed 29 simulation tests.
@@ -177,7 +193,7 @@ Raw observations and summaries are in `evidence/`.
   this experiment involving a desktop PSU/GPU and uncertain hardware state:
   https://github.com/linux-on-mac/mbpfan/blob/master/README.md
 
-## Lower idle revision (2026-09-25)
+## Historical lower idle revision (superseded, 2026-09-25)
 
 The original 4300 RPM floor was a conservative experiment setting, not the
 model's normal idle speed. The revised curve uses independent CPU/GPU
@@ -189,7 +205,7 @@ checks, fault checks, watchdog and independent automatic restoration remain.
 - A 232.1-second trial with a 3000 RPM floor reached 2990 RPM and observed
   PSU 55.0–55.75 C. These short observations do not establish long-term safety.
 - **3500 RPM** was selected after an acoustic evaluation
-  for the permanent boot-enabled service. 3000 is not the installed floor.
+  for that revision of the boot-enabled service. The current floor is 3000 RPM.
 - No temperature cutoff was raised. Manual fan stall detection now permits
   the tested lower range, while the requested-RPM tracking check remains.
 - 36 simulation tests pass, including lower-floor recovery, moderate-load
@@ -198,11 +214,11 @@ checks, fault checks, watchdog and independent automatic restoration remain.
 Observations: `evidence/idle-floor-3500.jsonl`, `evidence/idle-floor-3000.jsonl`.
 Previous source and service: `evidence/before-lower-idle/`.
 
-## Stepped CPU revision (supersedes the preceding 3500 RPM setting)
+## Historical stepped CPU revision (superseded by temperature-only control)
 
 A revision introduced a 3000 RPM idle floor and a higher CPU handoff because
-ordinary interactive activity repeatedly crossed the original 50% threshold. The current
-boot-enabled service uses these rising-load steps, with approximately five
+ordinary interactive activity repeatedly crossed the original 50% threshold. That revision
+used these rising-load steps, with approximately five
 seconds of aggregate CPU smoothing:
 
 | Aggregate CPU use | Load-based request |
@@ -246,7 +262,7 @@ and later 2200–2400 RPM at 82 C. This is an observation, not a recommended
 temperature or an Apple specification:
 https://forums.macrumors.com/threads/fan-speed-on-2-4ghz-mac-mini-2010-never-changes.943010/
 
-Our 3000 RPM floor and CPU steps are deliberately conservative custom
+Our 3000 RPM floor and temperature curves are deliberately conservative custom
 settings. They do not reproduce Apple's curve or establish an optimal RPM.
 The higher floor is retained because the original full-speed request remains
 unexplained; the available short idle trials do not justify assuming the

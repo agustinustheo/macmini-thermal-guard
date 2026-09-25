@@ -1,8 +1,11 @@
 # Temperature control and spoken warnings: research and proposal
 
-Researched 2026-09-25. **Proposal only: this document does not change the
-installed fan controller or enable alerts, shutdowns, or reboots.** The current
-controller still uses CPU utilization plus temperature, as described in README.
+Researched 2026-09-25. **Historical proposal.** On 2026-09-26 (local time),
+all-component temperature-based fan control was adopted without
+spoken alerts. The temperature-only policy is now implemented; the current
+behavior is in README.md and REFERENCE.md. Alerts, shutdowns and reboots remain
+unimplemented. The proposal below is retained as the reasoning behind the
+revision, not as an installation status report.
 
 ## Findings
 

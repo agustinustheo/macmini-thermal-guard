@@ -1,5 +1,11 @@
 # Macmini4,1 thermal reference and current policy
 
+**2026-09-26 operating update:** after the audit, the unchanged controller was resumed
+and automatic startup was enabled. Both were
+verified after reboot. This does not resolve the unexplained firmware request
+or the [audit's safety findings](../evidence/thermal-audit-20260925T1705Z/REPORT.md).
+See the [post-reboot check](../evidence/POST-REBOOT-CHECK-20260926.md).
+
 Research date: 2026-09-25. Supported model: 2010 Mac mini, P8600 2.4 GHz, two CPU cores,
 GeForce 320M, Linux. This reference preserves extracted facts locally so
 future work need not depend on links remaining online.
@@ -42,25 +48,14 @@ There is insufficient matched data to fit a reliable RPM=f(CPU%) model:
 room temperature, workload duration, GPU activity, power, sensor position,
 custom controllers and hardware condition differ among the observations.
 A statistical average or a linear interpolation of those unrelated examples
-would be misleading. The CPU steps are user-requested anticipation of heat;
-actual temperature demand always has priority.
+would be misleading. The installed revision now uses **temperature only**;
+the earlier CPU-utilization steps and 80% handoff have been removed.
 
-| Rising aggregate CPU use | Load-based fan request |
-| --- | ---: |
-| 0 to below 35% | 3000 RPM |
-| 35 to below 50% | 3500 RPM |
-| 50 to below 70% | 3900 RPM |
-| 70 to below 75% | 4300 RPM |
-| 75 to below 80% | 4800 RPM |
-| 80% or higher | Firmware automatic control |
-
-CPU percentage covers both cores together, averaged over about five seconds.
-Each manual step needs a five-percentage-point fall below its entry threshold
-before dropping back. Thus falling-load RPM can differ from this rising-load
-table. Targets decrease at no more than 50 RPM per second; increases are
-immediate. Above the temperature triggers below, manual control requests
-5500 RPM even with low CPU use. Temperature alone does not trigger automatic
-handoff while already in manual mode.
+Each sensor makes a cooling request using its own curve. The largest request
+wins, regardless of CPU load or whether the other components are cool. Fan
+targets decrease by no more than 50 RPM per second and increase immediately.
+Above any intervention point below, manual control requests 5500 RPM.
+Temperature alone does not hand off to auto while already in manual mode.
 
 | Temperature input | Begin temperature ramp | Maximum MANUAL cooling |
 | --- | ---: | ---: |
@@ -78,20 +73,21 @@ The implemented calculation is:
 - CPU thermal request = floor + (5500-floor) * clamp((CPU_C-45)/10, 0, 1).
 - GPU thermal request = floor + (5500-floor) * clamp((GPU_C-48)/8, 0, 1).
 - For each SMC sensor: floor + (5500-floor) * clamp((T-(LIMIT-4))/2, 0, 1).
-- Take the maximum of the temperature requests and the CPU step; round up
+- Take the maximum of all temperature requests; round up
   to 25 RPM, cap at 5500, and apply the downward slew limit.
 
 Examples with otherwise cool sensors: CPU 50 C, GPU 52 C, or PSU 57 C each
-requests 4250 RPM. Cool sensors with 70% rising CPU demand request 4300 RPM;
-75% requests 4800 RPM. These are calculations of our chosen policy, not
-predictions of what Apple's original controller would do.
+requests 4250 RPM. Memory-labelled TM0P or TM0p at 48 C requests 5500 RPM
+even if the CPU is only 40 C. These calculate our custom policy, not Apple's
+original controller. CPU percentage no longer changes fan requests.
 
-The service starts in auto and qualifies conditions before taking control.
-After an 80% CPU handoff, reentry requires 30 seconds below 65% CPU, CPU below
-50 C, GPU below 52 C, and all SMC sensors at least 4 C below LIMITS. Missing or
-invalid sensors, SMC faults, fan-tracking failure, service shutdown or watchdog
-expiry still restore auto as an emergency fallback. Software cannot reliably
-identify every plausible-but-incorrect reading or prevent electrical faults.
+The service starts in auto and qualifies cool temperatures for 30 seconds
+before taking control: CPU below 50 C, GPU below 52 C, and all SMC channels
+at least 4 C below LIMITS. It only takes over a near-maximum firmware request.
+Missing/invalid sensors, SMC faults, fan-tracking failure, service shutdown
+or watchdog expiry still restore auto as an emergency fallback. Software
+cannot reliably identify every plausible-but-incorrect reading or prevent
+electrical faults. The voice/notification proposal is not installed.
 
 ## Local measurements and validation
 
@@ -102,7 +98,9 @@ one controller restart around its middle while changing thermal handoff to
 maximum manual cooling; its automatic startup samples are not spontaneous
 CPU-triggered handoffs. These are short observations, not long-term validation.
 
-The guard passed 44 simulation tests. Independent watchdog restoration was
+The earlier stepped guard passed 44 simulation tests. The temperature-only
+revision passes 35 tests, replacing obsolete CPU-step tests with per-component
+demand, combined-demand, cooldown and complete-control-loop recovery tests. Independent watchdog restoration was
 hardware-tested during the original implementation. The revised guard used
 0.80% of total two-core CPU capacity during a 60-second measurement before
 the stepped revision; the later steps were not separately profiled.

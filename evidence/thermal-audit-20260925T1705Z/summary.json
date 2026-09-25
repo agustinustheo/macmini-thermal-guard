@@ -1,0 +1,225 @@
+{
+  "duration_seconds": 241.594,
+  "samples": 119,
+  "errors": [],
+  "phases": {
+    "baseline": {
+      "samples": 59,
+      "cpu_percent_mean": 19.09,
+      "core_temperature_min": 34.0,
+      "core_temperature_max": 43.0
+    },
+    "exercise": {
+      "samples": 15,
+      "cpu_percent_mean": 31.7,
+      "core_temperature_min": 34.0,
+      "core_temperature_max": 40.0
+    },
+    "recovery": {
+      "samples": 45,
+      "cpu_percent_mean": 20.72,
+      "core_temperature_min": 34.0,
+      "core_temperature_max": 43.0
+    }
+  },
+  "sensors": {
+    "applesmc/TA0P": {
+      "last": 24.5,
+      "min": 24.5,
+      "max": 25.0,
+      "distinct_values": 3
+    },
+    "applesmc/TC0D": {
+      "last": 35.75,
+      "min": 34.75,
+      "max": 40.5,
+      "distinct_values": 21
+    },
+    "applesmc/TC0G": {
+      "last": 70.0,
+      "min": 70.0,
+      "max": 70.0,
+      "distinct_values": 1
+    },
+    "applesmc/TC0H": {
+      "last": 34.25,
+      "min": 33.5,
+      "max": 35.25,
+      "distinct_values": 8
+    },
+    "applesmc/TC0P": {
+      "last": 32.75,
+      "min": 32.75,
+      "max": 33.5,
+      "distinct_values": 4
+    },
+    "applesmc/TC0p": {
+      "last": 33.0,
+      "min": 32.0,
+      "max": 33.5,
+      "distinct_values": 7
+    },
+    "applesmc/TCPG": {
+      "last": 73.0,
+      "min": 73.0,
+      "max": 73.0,
+      "distinct_values": 1
+    },
+    "applesmc/TH0G": {
+      "last": 60.0,
+      "min": 60.0,
+      "max": 60.0,
+      "distinct_values": 1
+    },
+    "applesmc/TH0P": {
+      "last": 24.25,
+      "min": 24.0,
+      "max": 24.75,
+      "distinct_values": 4
+    },
+    "applesmc/TH0p": {
+      "last": 24.25,
+      "min": 24.0,
+      "max": 24.75,
+      "distinct_values": 4
+    },
+    "applesmc/TM0G": {
+      "last": 75.0,
+      "min": 75.0,
+      "max": 75.0,
+      "distinct_values": 1
+    },
+    "applesmc/TM0P": {
+      "last": 34.5,
+      "min": 34.5,
+      "max": 35.5,
+      "distinct_values": 5
+    },
+    "applesmc/TM0p": {
+      "last": 34.5,
+      "min": 34.5,
+      "max": 35.5,
+      "distinct_values": 5
+    },
+    "applesmc/TN0D": {
+      "last": 37.0,
+      "min": 36.0,
+      "max": 37.75,
+      "distinct_values": 8
+    },
+    "applesmc/TN0G": {
+      "last": 67.0,
+      "min": 67.0,
+      "max": 67.0,
+      "distinct_values": 1
+    },
+    "applesmc/TN0P": {
+      "last": 31.25,
+      "min": 31.25,
+      "max": 32.0,
+      "distinct_values": 4
+    },
+    "applesmc/TN0p": {
+      "last": 31.0,
+      "min": 31.0,
+      "max": 31.75,
+      "distinct_values": 4
+    },
+    "applesmc/TN1D": {
+      "last": 45.0,
+      "min": 45.0,
+      "max": 46.0,
+      "distinct_values": 2
+    },
+    "applesmc/TN1E": {
+      "last": 45.0,
+      "min": 45.0,
+      "max": 46.0,
+      "distinct_values": 2
+    },
+    "applesmc/TN1F": {
+      "last": 46.75,
+      "min": 46.75,
+      "max": 48.0,
+      "distinct_values": 6
+    },
+    "applesmc/TN1G": {
+      "last": 90.0,
+      "min": 90.0,
+      "max": 90.0,
+      "distinct_values": 1
+    },
+    "applesmc/TN1S": {
+      "last": 46.75,
+      "min": 46.75,
+      "max": 48.0,
+      "distinct_values": 6
+    },
+    "applesmc/TNPG": {
+      "last": 70.0,
+      "min": 70.0,
+      "max": 70.0,
+      "distinct_values": 1
+    },
+    "applesmc/TO0P": {
+      "last": 27.25,
+      "min": 27.0,
+      "max": 27.75,
+      "distinct_values": 4
+    },
+    "applesmc/TO0p": {
+      "last": 27.25,
+      "min": 27.0,
+      "max": 27.75,
+      "distinct_values": 4
+    },
+    "applesmc/TW0P": {
+      "last": 32.75,
+      "min": 32.75,
+      "max": 33.25,
+      "distinct_values": 3
+    },
+    "applesmc/Tm0P": {
+      "last": 29.0,
+      "min": 29.0,
+      "max": 29.75,
+      "distinct_values": 4
+    },
+    "applesmc/Tp0C": {
+      "last": 54.75,
+      "min": 54.5,
+      "max": 55.75,
+      "distinct_values": 6
+    },
+    "coretemp/Core 0": {
+      "last": 35.0,
+      "min": 34.0,
+      "max": 43.0,
+      "distinct_values": 10
+    },
+    "coretemp/Core 1": {
+      "last": 35.0,
+      "min": 34.0,
+      "max": 43.0,
+      "distinct_values": 10
+    },
+    "nouveau/temp1_input": {
+      "last": 45.0,
+      "min": 45.0,
+      "max": 46.0,
+      "distinct_values": 2
+    }
+  },
+  "fan_rpm": {
+    "min": 5472,
+    "max": 5524,
+    "last": 5498
+  },
+  "final_fan": {
+    "input": 5498,
+    "min": 1800,
+    "max": 5500,
+    "output": 5500,
+    "manual": 0
+  }
+}
