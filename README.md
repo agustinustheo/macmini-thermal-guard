@@ -12,6 +12,11 @@ See [research/REFERENCE.md](research/REFERENCE.md) for normal idle evidence,
 temperature references, the current calculated curve, all sensor triggers,
 local observations, and eight dated source records preserved for offline use.
 
+See [the temperature-only control and spoken-warning proposal](research/TEMPERATURE-POLICY-PROPOSAL.md)
+for follow-up manufacturer research, whole-system monitoring considerations,
+and alert delivery findings. It is a proposal; the installed policy below has
+not yet been changed to temperature-only control.
+
 ## What was established
 
 - Automatic mode was on, minimum 1800 RPM, maximum and target 5500 RPM.
