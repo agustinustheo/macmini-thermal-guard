@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Macmini4,1 diagnostics and supervised thermal/load fan workaround.
+"""Macmini4,1 diagnostics and supervised temperature-based fan workaround.
 
 No direct SMC-port access, fault clearing, firmware changes, or boot installation.
 Temperature limits below are conservative experiment cutoffs, not Apple ratings.
 """
 import argparse
-from collections import deque
 import fcntl
 import json
 import math
@@ -149,42 +148,30 @@ def restore():
         raise Unsafe('; '.join(errors))
 
 
-class CpuCooling:
-    """Stepped load anticipation with a five-percentage-point release gap."""
-    thresholds = (35, 50, 70, 75)
-    speeds = (3000, 3500, 3900, 4300, 4800)
+def thermal_demand(snapshot, minimum=4300):
+    """Return the strongest per-sensor request and the channels driving it.
 
-    def __init__(self):
-        self.step = 0
-
-    def request(self, cpu, minimum):
-        if not math.isfinite(cpu) or not 0 <= cpu <= 100:
-            raise Unsafe('Invalid CPU utilization')
-        while self.step < len(self.thresholds) and cpu >= self.thresholds[self.step]:
-            self.step += 1
-        while self.step > 0 and cpu < self.thresholds[self.step-1] - 5:
-            self.step -= 1
-        return max(minimum, self.speeds[self.step])
-
-
-def desired_rpm(snapshot, cpu=0, minimum=4300, load_rpm=None):
-    """Use the strongest temperature/load request; preserve early handoffs.
-
-    The selectable 3000–4300 floor is for supervised idle validation. Reach
-    full cooling at the existing handoff thresholds, not at damage limits.
+    Intervention settings are precautionary, not component damage limits.
+    Each sensor contributes independently, regardless of CPU utilization.
     """
     check(snapshot, enforce_cutoffs=False)
-    if not 3000 <= minimum <= 4300 or not math.isfinite(cpu) or not 0 <= cpu <= 100:
-        raise Unsafe('Invalid fan floor or CPU utilization')
-    margin = min(LIMITS[k] - snapshot['temps'][k] for k in LIMITS)
-    cpu_temp = max(snapshot['temps']['TC0D'], *(v for k,v in snapshot['independent'].items() if k.startswith('coretemp/')))
-    gpu_temp = max(v for k,v in snapshot['independent'].items() if k.startswith('nouveau/'))
-    fraction = max(0, (4-margin)/2, (cpu_temp-45)/10, (gpu_temp-48)/8)
-    thermal_request = minimum + min(1, fraction)*(5500-minimum)
-    load_request = CpuCooling().request(cpu, minimum) if load_rpm is None else load_rpm
-    if not minimum <= load_request <= 5500:
-        raise Unsafe('Invalid load cooling request')
-    return min(5500, math.ceil(max(thermal_request, load_request)/25)*25)
+    if not 3000 <= minimum <= 4300:
+        raise Unsafe('Invalid fan floor')
+    fractions = {k: (snapshot['temps'][k] - (limit-4))/2
+                 for k, limit in LIMITS.items()}
+    fractions['CPU'] = (max(snapshot['temps']['TC0D'], *(v for k,v in
+        snapshot['independent'].items() if k.startswith('coretemp/'))) - 45)/10
+    fractions['GPU'] = (max(v for k,v in snapshot['independent'].items()
+                           if k.startswith('nouveau/')) - 48)/8
+    fractions = {k: min(1, max(0, v)) for k,v in fractions.items()}
+    strongest = max(fractions.values())
+    drivers = sorted(k for k,v in fractions.items() if v == strongest) if strongest > 0 else ['idle floor']
+    rpm = min(5500, math.ceil((minimum + strongest*(5500-minimum))/25)*25)
+    return rpm, drivers
+
+
+def desired_rpm(snapshot, minimum=4300):
+    return thermal_demand(snapshot, minimum)[0]
 
 
 def notify(message):
@@ -198,59 +185,23 @@ def notify(message):
         connection.sendall(message.encode())
 
 
-class CpuMeter:
-    """Machine-wide busy percentage; guest fields must not be counted twice."""
-    def __init__(self):
-        self.history = deque([self.counters()], maxlen=6)
-
-    @staticmethod
-    def counters():
-        fields = Path('/proc/stat').read_text().splitlines()[0].split()
-        if fields[0] != 'cpu' or len(fields) < 9:
-            raise Unsafe('Invalid aggregate CPU statistics')
-        ticks = list(map(int, fields[1:9]))
-        return sum(ticks), ticks[3] + ticks[4]
-
-    @staticmethod
-    def utilization(before, after):
-        total = after[0] - before[0]
-        idle = after[1] - before[1]
-        if total <= 0 or not 0 <= idle <= total:
-            raise Unsafe('Invalid CPU counter delta')
-        return 100 * (total-idle) / total
-
-    def sample(self):
-        current = self.counters()
-        self.history.append(current)
-        # Approximately five seconds at the one-second control interval.
-        # Compute from ticks over the whole window, not an average of percentages.
-        return self.utilization(self.history[0], current)
-
-
 class Policy:
     def __init__(self):
         self.mode = 'auto'
         self.quiet_since = None
-        self.reason = 'Waiting for 30 seconds below 65% CPU and cool temperatures'
+        self.reason = 'Waiting for 30 seconds of cool temperatures'
 
-    def decide(self, snap, cpu, now):
+    def decide(self, snap, now):
         check(snap, enforce_cutoffs=False)
-        if not math.isfinite(cpu) or not 0 <= cpu <= 100:
-            raise Unsafe('Invalid CPU utilization')
         cores = [v for k,v in snap['independent'].items() if k.startswith('coretemp/')]
         cpu_temp = max(*cores, snap['temps']['TC0D'])
         margin = min(LIMITS[k] - snap['temps'][k] for k in LIMITS)
         gpu_temp = max(v for k,v in snap['independent'].items() if k.startswith('nouveau/'))
         hot = cpu_temp >= 55 or gpu_temp >= 56 or margin <= 2
-        if cpu >= 80:
-            self.mode = 'auto'
-            self.quiet_since = None
-            self.reason = 'CPU use >=80%'
-            return self.mode
         if self.mode == 'manual':
-            self.reason = 'Temperature override: maximum manual cooling' if hot else 'Stepped load and temperature curve'
+            self.reason = 'Temperature override: maximum manual cooling' if hot else 'All-component temperature curve'
             return self.mode
-        cool = cpu < 65 and cpu_temp < 50 and gpu_temp < 52 and margin >= 4
+        cool = cpu_temp < 50 and gpu_temp < 52 and margin >= 4
         # Do not override normal automatic cooling if firmware is no longer
         # asking for close to maximum. This workaround is for the 5500 RPM case.
         needs_override = snap['target'] >= 5300 and snap['rpm'] >= 5200
@@ -260,7 +211,7 @@ class Policy:
             if now - self.quiet_since >= 30:
                 self.mode = 'manual'
                 self.quiet_since = None
-                self.reason = 'Low load and cool for 30 seconds'
+                self.reason = 'Cool temperatures for 30 seconds'
         else:
             self.quiet_since = None
             self.reason = 'Automatic speed already below near-maximum' if not needs_override else 'Waiting for cooldown'
@@ -292,16 +243,12 @@ def control(hw, minimum=4300):
     logged = 0
     mode = 'auto'
     policy = Policy()
-    cpu_meter = CpuMeter()
-    cpu_cooling = CpuCooling()
-    auto_handoff_at = None
     try:
-        notify('READY=1\nWATCHDOG=1\nSTATUS=Automatic mode; watching load and temperatures')
+        notify('READY=1\nWATCHDOG=1\nSTATUS=Automatic mode; watching all component temperatures')
         while True:
             time.sleep(1)
             snap = hw.snapshot()
             check(snap, enforce_cutoffs=False)
-            cpu = cpu_meter.sample()
             faults = hw.faults()
             if any(faults.values()):
                 raise Unsafe(f'SMC fault/thermal flag: {faults}')
@@ -311,23 +258,17 @@ def control(hw, minimum=4300):
                 raise Unsafe('Fan target changed unexpectedly')
             if mode == 'manual' and time.monotonic() - last_increase > 15 and snap['rpm'] < target - 250:
                 raise Unsafe('Fan not keeping up with requested cooling')
-            wanted = policy.decide(snap, cpu, time.monotonic())
-            if wanted == 'auto' and mode == 'manual':
-                restore()
-                mode = 'auto'
-                auto_handoff_at = time.monotonic()
-                emit('handoff', reason=policy.reason, cpu_percent=round(cpu,1), **snap)
-            elif wanted == 'manual' and mode == 'auto':
+            wanted = policy.decide(snap, time.monotonic())
+            if wanted == 'manual' and mode == 'auto':
                 check(snap)
                 hw.write('fan1_manual', 1)
                 hw.write('fan1_output', 5500)
                 mode = 'manual'
                 target = 5500
                 last_increase = time.monotonic()
-                auto_handoff_at = None
-                emit('quiet_mode', reason=policy.reason, cpu_percent=round(cpu,1), **snap)
+                emit('quiet_mode', reason=policy.reason, **snap)
+            request, drivers = thermal_demand(snap, minimum)
             if mode == 'manual':
-                request = desired_rpm(snap, cpu, minimum, cpu_cooling.request(cpu, minimum))
                 # Raise cooling immediately; lower by no more than 50 RPM/sec.
                 new_target = max(request, target - 50)
                 if new_target > target:
@@ -336,16 +277,9 @@ def control(hw, minimum=4300):
                 hw.write('fan1_output', target)
                 if abs(hw.read('fan1_output') - target) > 10:
                     raise Unsafe('Fan command readback mismatch')
-            elif auto_handoff_at and time.monotonic() - auto_handoff_at >= 15:
-                # A lower automatic target is fine when firmware chooses it.
-                # A near-max request without corresponding RPM is not.
-                if snap['target'] >= 5300 and snap['rpm'] < snap['target'] - 250:
-                    raise Unsafe('Automatic handoff did not deliver requested cooling')
-                emit('handoff_verified', **snap)
-                auto_handoff_at = None
-            notify(f'WATCHDOG=1\nSTATUS={mode}; CPU {cpu:.0f}%; fan {snap["rpm"]} RPM; PSU {snap["temps"]["Tp0C"]} C; floor {minimum} RPM')
+            notify(f'WATCHDOG=1\nSTATUS={mode}; demand {','.join(drivers)}; fan {snap["rpm"]} RPM; PSU {snap["temps"]["Tp0C"]} C; floor {minimum} RPM')
             if time.monotonic() - logged >= 10:
-                emit('control', mode=mode, reason=policy.reason, cpu_percent=round(cpu,1), requested=target if mode=='manual' else None, faults=faults, **snap)
+                emit('control', mode=mode, reason=policy.reason, thermal_demand=request, drivers=drivers, requested=target if mode=='manual' else None, faults=faults, **snap)
                 logged = time.monotonic()
     finally:
         restore()
