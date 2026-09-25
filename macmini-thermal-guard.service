@@ -1,0 +1,28 @@
+[Unit]
+Description=Conservative fan workaround for Macmini4,1
+After=systemd-modules-load.service
+Conflicts=sleep.target
+Before=sleep.target
+
+[Service]
+Type=notify
+ExecStartPre=/usr/bin/python3 /usr/local/lib/macmini-thermal-guard/guard.py wait
+ExecStart=/usr/bin/python3 /usr/local/lib/macmini-thermal-guard/guard.py control --min-rpm 3000
+ExecStopPost=/usr/bin/python3 /usr/local/lib/macmini-thermal-guard/guard.py restore
+WatchdogSec=8s
+WatchdogSignal=SIGTERM
+TimeoutStartSec=45s
+TimeoutStopSec=3s
+Restart=no
+RuntimeDirectory=macmini-thermal-guard
+RuntimeDirectoryMode=0755
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/sys/devices/platform/applesmc.768 /run/macmini-thermal-guard
+RestrictAddressFamilies=AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

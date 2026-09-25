@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.venv/
+node_modules/
+.env
+.env.*
+!.env.example
+
+# Local snapshots of superseded code; current source is tracked by Git.
+evidence/before-*/
