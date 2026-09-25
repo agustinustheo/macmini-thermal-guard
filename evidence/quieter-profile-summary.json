@@ -1,0 +1,41 @@
+{
+  "duration_seconds": 302.567,
+  "samples": 61,
+  "read_errors": [],
+  "late_window_start_seconds": 120,
+  "late_window_samples": 37,
+  "late_fan_rpm_range": [
+    3464,
+    4253
+  ],
+  "late_fan_rpm_mean": 3884,
+  "late_target_rpm_range": [
+    3325,
+    4325
+  ],
+  "cpu_core_C_range": [
+    38.0,
+    48.0
+  ],
+  "gpu_C_range": [
+    48.0,
+    50.0
+  ],
+  "psu_labelled_C_range": [
+    56.25,
+    57.25
+  ],
+  "memory_proximity_C_range": [
+    38.25,
+    39.5
+  ],
+  "final_rpm": 3886,
+  "final_target": 3775,
+  "service_cpu_percent_two_cores": 0.813,
+  "controller_sha256": "b5a90a78bb0b28ee53696568f1a67e6013597f480937a79d6151fa9a2db97c3b",
+  "service": {
+    "NRestarts": "0",
+    "ActiveState": "active",
+    "UnitFileState": "enabled"
+  }
+}

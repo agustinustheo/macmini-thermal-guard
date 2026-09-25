@@ -3,12 +3,14 @@
 Published evidence is anonymized; see [PRIVACY.md](PRIVACY.md) for scope,
 authorship exceptions, and handling of private diagnostic records.
 
-**Operating status, 2026-09-26: running and enabled at boot, by explicit operator choice.** The existing controller was re-enabled unchanged and its
-automatic startup was verified after a reboot. The maximum firmware fan request
+**Operating status, 2026-09-26: running and enabled at boot.** The quieter profile
+uses a 2350 RPM floor and includes controlled shutdown for critical temperatures.
+Automatic startup was verified before this profile update. The maximum firmware fan request
 remains unexplained; resuming the workaround does not resolve the safety gaps
 identified by the [thermal audit](evidence/thermal-audit-20260925T1705Z/REPORT.md).
 See the [post-reboot check](evidence/POST-REBOOT-CHECK-20260926.md) for current
-measurements and the distinction between operating status and diagnostic clearance.
+boot observations, and the [quieter-profile research](research/QUIETER-PROFILE.md)
+for the subsequent policy and its validation. Neither provides diagnostic clearance.
 
 A conservative **software workaround**, developed on a 2010 Mac mini
 (`Macmini4,1`, Linux). It does not establish or repair the underlying fault.
@@ -46,11 +48,14 @@ alerts were dropped by operator choice; no audio feature was installed.
 
 ## Current controller
 
-`guard.py control --min-rpm 3000` runs under `macmini-thermal-guard.service`.
-The installed idle floor is **3000 RPM**. Fan speed depends on temperatures
+`guard.py control --min-rpm 2350` runs under `macmini-thermal-guard.service`.
+The installed idle floor is **2350 RPM**. Fan speed depends on temperatures
 across the machine; CPU utilization is neither sampled nor used as a trigger.
 
-- Configurable manual floor: **3000–4300 RPM**, with up to **5500 RPM** cooling.
+- Configurable manual floor: **2350–4300 RPM**, with up to **5500 RPM** cooling.
+  The reduction from the previous floor is at most 650 RPM and tapers to zero
+  at the unchanged full-cooling thresholds. Actual speed can rise as the
+  components warm; this is not a fixed 2350 RPM cap.
 - Requires 21 named SMC channels, both independent CPU core readings, and the
   independent GPU reading. Each sensor contributes its own cooling request;
   **the largest request wins**. Cooler components cannot cancel a hotter
@@ -75,8 +80,9 @@ across the machine; CPU utilization is neither sampled nor used as a trigger.
   100% CPU activity does not trigger automatic handoff; actual temperatures
   can still request maximum cooling.
 - Startup stays automatic. Quiet-mode entry requires 30 continuous seconds
-  with CPU below 50 C, GPU below 52 C, and every SMC channel at least 4 C below
-  its cutoff. PSU must therefore be no higher than 56 C. The workaround takes
+  with CPU below 50 C, GPU below 52 C, and SMC channels at least 4 C below
+  their cutoffs, except PSU: its entry margin is 3 C (no higher than 57 C).
+  PSU still requests full cooling at 58 C. The workaround takes
   over only if firmware still requests at least 5300 RPM and actual speed is
   at least 5200 RPM. Otherwise it leaves firmware control alone.
 - Status and journal entries identify the sensor(s) driving the thermal request
@@ -100,6 +106,33 @@ across the machine; CPU utilization is neither sampled nor used as a trigger.
 - Stops before system sleep through a conflict with `sleep.target`.
   It does not automatically resume after sleep.
 - No network access or third-party Python dependencies.
+
+## Critical-temperature shutdown
+
+The controller requests a controlled system poweroff after a valid reading stays
+at or above its component-specific shutdown threshold for 10 continuous seconds:
+
+| Reading | Sustained shutdown | Immediate emergency shutdown |
+| --- | ---: | ---: |
+| Highest CPU core / CPU diode | 70 C | 85 C |
+| Independent GPU | 75 C | 90 C |
+| PSU-labelled Tp0C | 65 C | 70 C |
+| Memory-proximity TM0P/TM0p | 60 C | 65 C |
+| Drive-proximity TH0P/TH0p, TO0P/TO0p | 55 C | 60 C |
+
+Every required SMC channel is covered; the complete table is in
+[the profile reference](research/QUIETER-PROFILE.md). These are deliberately
+precautionary operating cutoffs, not verified component damage limits.
+Cooling reaches 5500 RPM well before these thresholds. A valid critical reading
+with grossly inadequate fan RPM also requests poweroff immediately.
+
+Once triggered, shutdown remains latched even if temperatures fall. The controller
+keeps requesting maximum cooling, calls `systemctl --no-block poweroff`, and retries
+a rejected request every 10 seconds. A failed fan write does not prevent the
+poweroff attempt. There is no automatic reboot and no forced power cut.
+The shutdown path is simulation-tested; actual poweroff was not deliberately
+triggered. It requires working sensors, Linux and systemd and cannot guarantee
+protection against hidden hardware faults or a hung system.
 
 **Limits:** This cannot prevent a short circuit, detect hidden liquid residue,
 repair electronics, or guarantee thermal safety during kernel/SMC/hardware
@@ -208,7 +241,7 @@ checks, fault checks, watchdog and independent automatic restoration remain.
 - A 232.1-second trial with a 3000 RPM floor reached 2990 RPM and observed
   PSU 55.0–55.75 C. These short observations do not establish long-term safety.
 - **3500 RPM** was selected after an acoustic evaluation
-  for that revision of the boot-enabled service. The current floor is 3000 RPM.
+  for that revision of the boot-enabled service. The current floor is 2350 RPM.
 - No temperature cutoff was raised. Manual fan stall detection now permits
   the tested lower range, while the requested-RPM tracking check remains.
 - 36 simulation tests pass, including lower-floor recovery, moderate-load
@@ -265,7 +298,7 @@ and later 2200–2400 RPM at 82 C. This is an observation, not a recommended
 temperature or an Apple specification:
 https://forums.macrumors.com/threads/fan-speed-on-2-4ghz-mac-mini-2010-never-changes.943010/
 
-Our 3000 RPM floor and temperature curves are deliberately conservative custom
+The current 2350 RPM floor and temperature curves are custom
 settings. They do not reproduce Apple's curve or establish an optimal RPM.
 The higher floor is retained because the original full-speed request remains
 unexplained; the available short idle trials do not justify assuming the

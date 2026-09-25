@@ -1,5 +1,10 @@
 # Measurement and validation records
 
+The latest [quieter-profile validation](QUIETER-PROFILE-VALIDATION.md) records
+the 2350 RPM floor, critical shutdown policy, 51 simulation tests and a bounded
+live observation. Its build log, numerical summary and anonymized readings are
+the `quieter-profile-*` files.
+
 These files preserve observations from one Macmini4,1 during development.
 They are historical records, not the current service status or a guarantee
 of long-term hardware safety. Earlier trials used different policies and

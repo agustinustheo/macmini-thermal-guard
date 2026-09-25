@@ -1,0 +1,60 @@
+
+> macmini-thermal-guard@0.1.0 build <project>
+> python3 -m py_compile guard.py && python3 -m unittest -v test_guard.py
+
+test_all_components_retain_maximum_with_quieter_floor (test_guard.Guards.test_all_components_retain_maximum_with_quieter_floor) ... ok
+test_all_missing_channels (test_guard.Guards.test_all_missing_channels) ... ok
+test_any_sensor_can_raise_fan (test_guard.Guards.test_any_sensor_can_raise_fan) ... ok
+test_baseline (test_guard.Guards.test_baseline) ... ok
+test_control_notify_failure_restores (test_guard.Guards.test_control_notify_failure_restores) ... ok
+test_control_range_and_ramp (test_guard.Guards.test_control_range_and_ramp) ... ok
+test_controller_needs_watchdog (test_guard.Guards.test_controller_needs_watchdog) ... ok
+test_cpu_and_gpu_each_raise_cooling_at_low_load (test_guard.Guards.test_cpu_and_gpu_each_raise_cooling_at_low_load) ... ok
+test_every_required_sensor_fails_closed (test_guard.Guards.test_every_required_sensor_fails_closed) ... ok
+test_failed_write_restores (test_guard.Guards.test_failed_write_restores) ... ok
+test_fan_stall (test_guard.Guards.test_fan_stall) ... ok
+test_fault_refuses_before_writes (test_guard.Guards.test_fault_refuses_before_writes) ... ok
+test_idle_floor_cannot_override_a_hot_sensor (test_guard.Guards.test_idle_floor_cannot_override_a_hot_sensor) ... ok
+test_independent_sensor (test_guard.Guards.test_independent_sensor) ... ok
+test_lower_idle_floor_and_psu_ramp (test_guard.Guards.test_lower_idle_floor_and_psu_ramp) ... ok
+test_lower_manual_speed_still_detects_stall (test_guard.Guards.test_lower_manual_speed_still_detects_stall) ... ok
+test_missing_independent (test_guard.Guards.test_missing_independent) ... ok
+test_quieter_curve_examples (test_guard.Guards.test_quieter_curve_examples) ... ok
+test_quieter_curve_is_bounded_monotonic_and_rejoins_maximum (test_guard.Guards.test_quieter_curve_is_bounded_monotonic_and_rejoins_maximum) ... ok
+test_quieter_manual_floor_keeps_tracking_tolerance (test_guard.Guards.test_quieter_manual_floor_keeps_tracking_tolerance) ... ok
+test_rise (test_guard.Guards.test_rise) ... ok
+test_small_cpu_fluctuation_allowed_but_large_rise_rejected (test_guard.Guards.test_small_cpu_fluctuation_allowed_but_large_rise_rejected) ... ok
+test_unsupervised_refused (test_guard.Guards.test_unsupervised_refused) ... ok
+test_unsupported_floors_fail_closed (test_guard.Guards.test_unsupported_floors_fail_closed) ... ok
+test_acceleration_from_quiet_floor_has_time_to_reach_target (test_guard.PolicyTests.test_acceleration_from_quiet_floor_has_time_to_reach_target) ... ok
+test_combined_demands_take_maximum_and_report_ties (test_guard.PolicyTests.test_combined_demands_take_maximum_and_report_ties) ... ok
+test_component_relative_demand_wins_not_highest_temperature (test_guard.PolicyTests.test_component_relative_demand_wins_not_highest_temperature) ... ok
+test_controller_peripheral_heat_recovery_and_shutdown_restore (test_guard.PolicyTests.test_controller_peripheral_heat_recovery_and_shutdown_restore) ... ok
+test_cooldown_restarts_for_every_warm_smc_sensor (test_guard.PolicyTests.test_cooldown_restarts_for_every_warm_smc_sensor) ... ok
+test_cooldown_then_quiet (test_guard.PolicyTests.test_cooldown_then_quiet) ... ok
+test_each_component_demands_full_cooling_on_its_own (test_guard.PolicyTests.test_each_component_demands_full_cooling_on_its_own) ... ok
+test_each_core_and_gpu_can_override_all_cool_components (test_guard.PolicyTests.test_each_core_and_gpu_can_override_all_cool_components) ... ok
+test_each_independent_sensor_prevents_warm_takeover (test_guard.PolicyTests.test_each_independent_sensor_prevents_warm_takeover) ... ok
+test_failed_manual_sensor_read_restores (test_guard.PolicyTests.test_failed_manual_sensor_read_restores) ... ok
+test_fan_that_never_accelerates_still_fails_tracking (test_guard.PolicyTests.test_fan_that_never_accelerates_still_fails_tracking) ... ok
+test_hot_auto_remains_auto_then_recovers (test_guard.PolicyTests.test_hot_auto_remains_auto_then_recovers) ... ok
+test_idle_floor_and_rounding (test_guard.PolicyTests.test_idle_floor_and_rounding) ... ok
+test_invalid_independent_sensor_aborts_runtime_control (test_guard.PolicyTests.test_invalid_independent_sensor_aborts_runtime_control) ... ok
+test_invalid_smc_sensor_aborts_runtime_control (test_guard.PolicyTests.test_invalid_smc_sensor_aborts_runtime_control) ... ok
+test_leave_working_automatic_cooling_alone (test_guard.PolicyTests.test_leave_working_automatic_cooling_alone) ... ok
+test_psu_warm_entry_still_requires_cooldown_and_cooling_demand (test_guard.PolicyTests.test_psu_warm_entry_still_requires_cooldown_and_cooling_demand) ... ok
+test_unknown_constant_channels_do_not_drive_cooling (test_guard.PolicyTests.test_unknown_constant_channels_do_not_drive_cooling) ... ok
+test_critical_loop_retries_shutdown_even_when_fan_write_fails (test_guard.ShutdownTests.test_critical_loop_retries_shutdown_even_when_fan_write_fails) ... ok
+test_emergency_readings_trigger_without_delay (test_guard.ShutdownTests.test_emergency_readings_trigger_without_delay) ... ok
+test_every_monitored_component_has_a_later_shutdown_limit (test_guard.ShutdownTests.test_every_monitored_component_has_a_later_shutdown_limit) ... ok
+test_every_shutdown_channel_requires_ten_continuous_seconds (test_guard.ShutdownTests.test_every_shutdown_channel_requires_ten_continuous_seconds) ... ok
+test_failed_poweroff_is_reported_for_retry (test_guard.ShutdownTests.test_failed_poweroff_is_reported_for_retry) ... ok
+test_hot_reading_with_stalled_fan_does_not_wait (test_guard.ShutdownTests.test_hot_reading_with_stalled_fan_does_not_wait) ... ok
+test_invalid_sensors_are_not_treated_as_a_valid_thermal_event (test_guard.ShutdownTests.test_invalid_sensors_are_not_treated_as_a_valid_thermal_event) ... ok
+test_poweroff_is_controlled_nonblocking_and_never_reboot (test_guard.ShutdownTests.test_poweroff_is_controlled_nonblocking_and_never_reboot) ... ok
+test_short_spike_and_alternating_hot_sensors_do_not_accumulate (test_guard.ShutdownTests.test_short_spike_and_alternating_hot_sensors_do_not_accumulate) ... ok
+
+----------------------------------------------------------------------
+Ran 51 tests in 0.638s
+
+OK

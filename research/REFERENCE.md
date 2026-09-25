@@ -6,6 +6,11 @@ verified after reboot. This does not resolve the unexplained firmware request
 or the [audit's safety findings](../evidence/thermal-audit-20260925T1705Z/REPORT.md).
 See the [post-reboot check](../evidence/POST-REBOOT-CHECK-20260926.md).
 
+**Subsequent profile update:** the installed floor is now 2350 RPM, with all
+full-cooling temperatures unchanged and component-specific critical shutdown
+added. See [QUIETER-PROFILE.md](QUIETER-PROFILE.md) for the additional research,
+cutoffs and validation. Earlier measurements below retain their original floors.
+
 Research date: 2026-09-25. Supported model: 2010 Mac mini, P8600 2.4 GHz, two CPU cores,
 GeForce 320M, Linux. This reference preserves extracted facts locally so
 future work need not depend on links remaining online.
@@ -39,8 +44,8 @@ Max for the listed 2010 configuration [S8]. No power meter was used here.
 
 ## How the current settings were selected
 
-3000 RPM is a provisional, conservative workaround floor supported by short
-supervised trials on this unit. It is above the documented 1800 RPM idle
+2350 RPM is a provisional, quieter workaround floor evaluated in a bounded
+supervised trial. It is above the documented 1800 RPM idle
 baseline. It is not a calculated thermal optimum, a reproduction of Apple's
 curve, or a declaration that the unexplained maximum-speed request is fixed.
 
@@ -77,13 +82,15 @@ The implemented calculation is:
   to 25 RPM, cap at 5500, and apply the downward slew limit.
 
 Examples with otherwise cool sensors: CPU 50 C, GPU 52 C, or PSU 57 C each
-requests 4250 RPM. Memory-labelled TM0P or TM0p at 48 C requests 5500 RPM
+requests 3925 RPM with the 2350 RPM floor (4250 with the previous 3000 floor).
+Memory-labelled TM0P or TM0p at 48 C requests 5500 RPM
 even if the CPU is only 40 C. These calculate our custom policy, not Apple's
 original controller. CPU percentage no longer changes fan requests.
 
 The service starts in auto and qualifies cool temperatures for 30 seconds
 before taking control: CPU below 50 C, GPU below 52 C, and all SMC channels
-at least 4 C below LIMITS. It only takes over a near-maximum firmware request.
+at least 4 C below LIMITS, except PSU's 3 C entry margin (<=57 C). It only takes
+over a near-maximum firmware request. Full-cooling thresholds are unchanged.
 Missing/invalid sensors, SMC faults, fan-tracking failure, service shutdown
 or watchdog expiry still restore auto as an emergency fallback. Software
 cannot reliably identify every plausible-but-incorrect reading or prevent

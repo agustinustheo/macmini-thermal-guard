@@ -4,7 +4,8 @@ Researched 2026-09-25. **Historical proposal.** On 2026-09-26 (local time),
 all-component temperature-based fan control was adopted without
 spoken alerts. The temperature-only policy is now implemented; the current
 behavior is in README.md and REFERENCE.md. Alerts, shutdowns and reboots remain
-unimplemented. The proposal below is retained as the reasoning behind the
+unimplemented at that revision. A subsequent profile added controlled shutdown;
+see [QUIETER-PROFILE.md](QUIETER-PROFILE.md). The proposal below is retained as the reasoning behind the
 revision, not as an installation status report.
 
 ## Findings
