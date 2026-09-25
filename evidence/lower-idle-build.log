@@ -1,0 +1,45 @@
+
+> macmini-thermal-guard@0.1.0 build <project>
+> python3 -m py_compile guard.py && python3 -m unittest -v test_guard.py
+
+test_all_missing_channels (test_guard.Guards.test_all_missing_channels) ... ok
+test_any_sensor_can_raise_fan (test_guard.Guards.test_any_sensor_can_raise_fan) ... ok
+test_baseline (test_guard.Guards.test_baseline) ... ok
+test_control_notify_failure_restores (test_guard.Guards.test_control_notify_failure_restores) ... ok
+test_control_range_and_ramp (test_guard.Guards.test_control_range_and_ramp) ... ok
+test_controller_needs_watchdog (test_guard.Guards.test_controller_needs_watchdog) ... ok
+test_cpu_and_gpu_each_raise_cooling_at_low_load (test_guard.Guards.test_cpu_and_gpu_each_raise_cooling_at_low_load) ... ok
+test_every_required_sensor_fails_closed (test_guard.Guards.test_every_required_sensor_fails_closed) ... ok
+test_failed_write_restores (test_guard.Guards.test_failed_write_restores) ... ok
+test_fan_stall (test_guard.Guards.test_fan_stall) ... ok
+test_fault_refuses_before_writes (test_guard.Guards.test_fault_refuses_before_writes) ... ok
+test_idle_floor_cannot_override_a_hot_sensor (test_guard.Guards.test_idle_floor_cannot_override_a_hot_sensor) ... ok
+test_independent_sensor (test_guard.Guards.test_independent_sensor) ... ok
+test_lower_idle_floor_and_psu_ramp (test_guard.Guards.test_lower_idle_floor_and_psu_ramp) ... ok
+test_lower_manual_speed_still_detects_stall (test_guard.Guards.test_lower_manual_speed_still_detects_stall) ... ok
+test_missing_independent (test_guard.Guards.test_missing_independent) ... ok
+test_moderate_load_increases_cooling_before_handoff (test_guard.Guards.test_moderate_load_increases_cooling_before_handoff) ... ok
+test_rise (test_guard.Guards.test_rise) ... ok
+test_small_cpu_fluctuation_allowed_but_large_rise_rejected (test_guard.Guards.test_small_cpu_fluctuation_allowed_but_large_rise_rejected) ... ok
+test_unsupervised_refused (test_guard.Guards.test_unsupervised_refused) ... ok
+test_unsupported_floors_and_load_fail_closed (test_guard.Guards.test_unsupported_floors_and_load_fail_closed) ... ok
+test_cooldown_resets_on_load (test_guard.PolicyTests.test_cooldown_resets_on_load) ... ok
+test_cooldown_then_quiet (test_guard.PolicyTests.test_cooldown_then_quiet) ... ok
+test_cpu_counter_math (test_guard.PolicyTests.test_cpu_counter_math) ... ok
+test_cpu_rolling_window (test_guard.PolicyTests.test_cpu_rolling_window) ... ok
+test_cpu_temperature_independent_of_utilization (test_guard.PolicyTests.test_cpu_temperature_independent_of_utilization) ... ok
+test_exact_50_percent_hands_back (test_guard.PolicyTests.test_exact_50_percent_hands_back) ... ok
+test_failed_manual_sensor_read_restores (test_guard.PolicyTests.test_failed_manual_sensor_read_restores) ... ok
+test_full_controller_handoff_and_recovery (test_guard.PolicyTests.test_full_controller_handoff_and_recovery) ... ok
+test_gpu_temperature_independent_of_cpu (test_guard.PolicyTests.test_gpu_temperature_independent_of_cpu) ... ok
+test_hot_auto_remains_auto_then_recovers (test_guard.PolicyTests.test_hot_auto_remains_auto_then_recovers) ... ok
+test_invalid_stats_abort (test_guard.PolicyTests.test_invalid_stats_abort) ... ok
+test_leave_working_automatic_cooling_alone (test_guard.PolicyTests.test_leave_working_automatic_cooling_alone) ... ok
+test_lower_floor_control_reaches_idle_then_responds_to_load (test_guard.PolicyTests.test_lower_floor_control_reaches_idle_then_responds_to_load) ... ok
+test_middle_band_does_not_chatter (test_guard.PolicyTests.test_middle_band_does_not_chatter) ... ok
+test_psu_temperature_independent_of_cpu (test_guard.PolicyTests.test_psu_temperature_independent_of_cpu) ... ok
+
+----------------------------------------------------------------------
+Ran 36 tests in 0.087s
+
+OK

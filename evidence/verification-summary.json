@@ -1,0 +1,24 @@
+{
+  "observed_seconds": 180.6,
+  "latest_fan_rpm": 4324,
+  "latest_target_rpm": 4300,
+  "service_cpu_percent_total_two_cores": 0.83,
+  "service_memory_MiB": 7.33,
+  "settled_samples": 8,
+  "settled_fan_rpm_range": [
+    4292,
+    4324
+  ],
+  "settled_cpu_C_range": [
+    36.0,
+    45.0
+  ],
+  "settled_gpu_C_range": [
+    46.0,
+    48.0
+  ],
+  "settled_psu_C_range": [
+    55.0,
+    56.0
+  ]
+}

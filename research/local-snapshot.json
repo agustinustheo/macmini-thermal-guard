@@ -1,0 +1,42 @@
+{
+  "temps": {
+    "TN0D": 39.25,
+    "TO0P": 27.75,
+    "TC0H": 36.75,
+    "TN1D": 48.0,
+    "Tp0C": 55.0,
+    "TM0G": 75.0,
+    "TH0G": 60.0,
+    "TN1G": 90.0,
+    "TA0P": 26.0,
+    "TN0G": 67.0,
+    "TO0p": 27.75,
+    "TC0P": 34.75,
+    "TN1E": 48.0,
+    "TM0P": 36.75,
+    "TH0P": 25.25,
+    "TN1S": 48.75,
+    "TC0D": 38.0,
+    "TN0P": 33.5,
+    "TW0P": 35.25,
+    "TC0p": 34.75,
+    "TM0p": 36.75,
+    "TNPG": 70.0,
+    "TC0G": 70.0,
+    "TN0p": 33.75,
+    "Tm0P": 31.0,
+    "TH0p": 25.25,
+    "TCPG": 73.0,
+    "TN1F": 48.75
+  },
+  "independent": {
+    "nouveau/temp1_input": 48.0,
+    "coretemp/temp2_input": 40.0,
+    "coretemp/temp3_input": 41.0
+  },
+  "rpm": 2998,
+  "target": 3000,
+  "manual": 1,
+  "minimum": 1800,
+  "maximum": 5500
+}

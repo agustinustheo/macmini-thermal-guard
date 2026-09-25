@@ -1,0 +1,9 @@
+source_id,condition,fan_rpm,cpu_c,psu_c,ambient_c,caveat
+S1,unspecified,1796–1804,47–51.8,,,model-specific examples
+S2,idle,1800,38,,,owner observation
+S2,"100% CPU, 5 min",1800,73,,,short full-load observation
+S2,hot workload,2200–2400,82,,,owner observation
+S2,"custom controller, 6 h encoding",4000–4200,60–65,,38,NOT factory curve
+S3,usual workload,,,54.4,,usual PSU reported by one owner
+S3,hot room,2500,71.1,60–65.6,32.2,heatsink reading 81.1 C
+S4,custom fan policy,5504,52.5,39.7031,29.875,ambient is internal sensor; P8800 variant

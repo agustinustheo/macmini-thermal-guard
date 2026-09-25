@@ -1,0 +1,12 @@
+{
+  "rpm": 3328,
+  "PSU": 55.25,
+  "CPU_GPU": {
+    "nouveau/temp1_input": 50.0,
+    "coretemp/temp2_input": 44.0,
+    "coretemp/temp3_input": 48.0
+  },
+  "mode": "manual",
+  "enabled": "enabled",
+  "status": "manual; CPU 36%; fan 3328 RPM; PSU 55.0 C; floor 3000 RPM"
+}
