@@ -2,6 +2,8 @@
 
 **Current CPU/GPU update:** see [CPU-GPU-PROFILE.md](CPU-GPU-PROFILE.md) for
 separate ramp endpoints, source notes and the complete current SMC ramp table.
+The [hot-start cooling record](../evidence/HOT-START-COOLING-FIX.md) explains
+the later automatic-mode cooling gap and revised takeover behavior.
 
 **Current PSU update:** the [gradual PSU table](WIDE-PSU-PROFILE.md) is installed,
 with full PSU cooling at 62 C and unchanged PSU shutdown at 65/70 C.

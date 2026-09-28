@@ -88,12 +88,24 @@ more. No CPU percentage threshold or fixed low-speed cap is used.
 
 ## Startup and protection
 
-Startup still uses firmware control until all channels qualify for thirty
-continuous seconds and firmware target/actual speed remain near maximum.
+Quiet takeover initially leaves firmware in control until all channels qualify
+for thirty continuous seconds and firmware target/actual speed remain near maximum.
 CPU must be <=54 C, GPU <=57 C, PSU <=58 C. `ENTRY_MAX` contains the separate
 SMC ceilings; all stay below the original supervised-probe cutoffs. A warm
 restart may therefore wait before enabling the quieter curve. These are not
 runtime full-speed thresholds. The original probe cutoffs remain unchanged.
+
+A separate rising-temperature path responds if automatic cooling falls below
+the curve's request. It compares the calculated request at the 2350 RPM
+reference floor with both actual and firmware-target RPM. If the request is
+at least 3500 RPM and either fan value trails by more than 250 RPM, it enters
+supervised manual mode at the calculated curve speed. At a request of 4300 RPM
+or higher, it first commands 5500 RPM, then follows the curve as readings
+cool. These paths still check required sensors and SMC fault flags, but do
+not apply cool-start cutoffs or wait thirty seconds. The fixed reference floor
+prevents a higher configured idle floor alone from triggering takeover. Once
+manual, normal temperature changes never hand control back to firmware. See
+the [incident and validation record](../evidence/HOT-START-COOLING-FIX.md).
 
 Runtime increases are immediate; target decreases remain limited to 50 RPM
 per approximately one-second loop. This is asymmetric slew limiting, not
@@ -112,10 +124,12 @@ software workaround and cannot establish hardware health or long-term safety.
 
 ## Validation
 
-`pnpm run build`: 62 passing simulations, including all-channel independent
+The original CPU/GPU revision had 62 passing simulations, including all-channel independent
 maximum requests, monotonic curves, sensor failures, new entry bounds within
 original probe cutoffs, related GPU channels no longer forcing old maximums,
 unchanged critical shutdowns, fan tracking and fault restoration.
 
 See [the local observation](../evidence/CPU-GPU-VALIDATION.md) for measured
 response. No intentional overheating, synthetic stress or real poweroff test.
+The later [hot-start cooling revision](../evidence/HOT-START-COOLING-FIX.md)
+adds earlier takeover and has 68 passing simulations.

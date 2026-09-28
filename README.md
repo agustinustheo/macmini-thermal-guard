@@ -3,14 +3,16 @@
 Published evidence is anonymized; see [PRIVACY.md](PRIVACY.md) for scope,
 authorship exceptions, and handling of private diagnostic records.
 
-**Operating status, 2026-09-26: running and enabled at boot.** The quieter profile
+**Operating status, 2026-09-28: running and enabled at boot.** The quieter profile
 uses a 2350 RPM floor, the [gradual PSU table](research/WIDE-PSU-PROFILE.md),
 the [wider CPU/GPU ramps](research/CPU-GPU-PROFILE.md),
 and controlled shutdown for critical temperatures.
-The latest [deployment observation](evidence/CPU-GPU-VALIDATION.md) stayed in
-automatic mode while startup temperatures failed to qualify; lower-airflow
-hardware validation of the new CPU/GPU curves remains pending.
-Automatic startup was verified before this profile update. The maximum firmware fan request
+An [observed hot-start rescue](evidence/HOT-START-COOLING-FIX.md) now informs
+the earlier rising-temperature takeover. An earlier
+[CPU/GPU deployment observation](evidence/CPU-GPU-VALIDATION.md) stayed in
+automatic mode while startup temperatures failed to qualify. Long-term
+lower-airflow safety remains unverified.
+Automatic startup was verified. The maximum firmware fan request
 remains unexplained; resuming the workaround does not resolve the safety gaps
 identified by the [thermal audit](evidence/thermal-audit-20260925T1705Z/REPORT.md).
 See the [post-reboot check](evidence/POST-REBOOT-CHECK-20260926.md) for current
@@ -93,13 +95,24 @@ across the machine; CPU utilization is neither sampled nor used as a trigger.
 - Full cooling stays in manual mode while the controller is healthy. Even
   100% CPU activity does not trigger automatic handoff; actual temperatures
   can still request maximum cooling.
-- Startup stays automatic. Quiet-mode entry requires 30 continuous seconds
+- At startup, firmware controls the fan. Quiet-mode entry requires 30 continuous seconds
   with CPU no higher than 54 C, GPU no higher than 57 C, and every SMC
   reading within its separate `ENTRY_MAX` ceiling (PSU no higher than 58 C).
   All entry ceilings remain below the original probe cutoffs.
   PSU now requests full cooling at 62 C. The workaround takes
-  over only if firmware still requests at least 5300 RPM and actual speed is
-  at least 5200 RPM. Otherwise it leaves firmware control alone.
+  over quietly only if firmware still requests at least 5300 RPM and actual
+  speed is at least 5200 RPM.
+- When the temperature curve requests at least 3500 RPM and the firmware
+  target or actual fan trails by more than 250 RPM, the controller enters
+  manual mode immediately at the calculated curve speed. If the request
+  reaches 4300 RPM, it first commands 5500 RPM and then descends toward the
+  curve as readings cool. These paths do not wait for quiet-start qualification.
+  A previous boot reached the CPU shutdown threshold while firmware automatic
+  control still targeted 1800 RPM; see the
+  [cooling-gap audit](evidence/HOT-START-COOLING-FIX.md).
+- Once in manual mode, ordinary temperature changes only adjust RPM; they do
+  not hand cooling back to firmware. Automatic mode returns on startup before
+  takeover or when the service stops, fails, restarts, or the machine sleeps.
 - Status and journal entries identify the sensor(s) driving the thermal request
   (`CPU`, `GPU`, an SMC channel ID, or `idle floor`). During gradual slowdown,
   the current target may remain above that request.

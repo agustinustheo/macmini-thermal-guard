@@ -1,0 +1,31 @@
+{"elapsed_seconds": 0.05, "fan_rpm": 1809, "fan_target_rpm": 1800, "manual": 0, "cpu_c": 52.0, "gpu_c": 57.0, "psu_c": 58.0, "TN1F_c": 59.25, "request_rpm": 3000, "drivers": ["Tp0C"]}
+{"elapsed_seconds": 5.09, "fan_rpm": 1804, "fan_target_rpm": 1800, "manual": 0, "cpu_c": 47.5, "gpu_c": 57.0, "psu_c": 57.75, "TN1F_c": 59.25, "request_rpm": 2900, "drivers": ["Tp0C"]}
+{"elapsed_seconds": 10.13, "fan_rpm": 1801, "fan_target_rpm": 1800, "manual": 0, "cpu_c": 47.0, "gpu_c": 56.0, "psu_c": 58.0, "TN1F_c": 59.25, "request_rpm": 3000, "drivers": ["Tp0C"]}
+{"elapsed_seconds": 15.16, "fan_rpm": 1801, "fan_target_rpm": 1800, "manual": 0, "cpu_c": 47.25, "gpu_c": 56.0, "psu_c": 57.75, "TN1F_c": 59.25, "request_rpm": 2900, "drivers": ["Tp0C"]}
+{"elapsed_seconds": 20.22, "fan_rpm": 1799, "fan_target_rpm": 1800, "manual": 0, "cpu_c": 47.25, "gpu_c": 56.0, "psu_c": 58.0, "TN1F_c": 59.0, "request_rpm": 3000, "drivers": ["Tp0C"]}
+{"elapsed_seconds": 25.26, "fan_rpm": 1801, "fan_target_rpm": 1800, "manual": 0, "cpu_c": 47.0, "gpu_c": 56.0, "psu_c": 57.75, "TN1F_c": 59.0, "request_rpm": 2900, "drivers": ["Tp0C"]}
+{"elapsed_seconds": 30.32, "fan_rpm": 1804, "fan_target_rpm": 1800, "manual": 0, "cpu_c": 48.0, "gpu_c": 57.0, "psu_c": 57.5, "TN1F_c": 59.0, "request_rpm": 2775, "drivers": ["Tp0C"]}
+{"elapsed_seconds": 35.36, "fan_rpm": 1801, "fan_target_rpm": 1800, "manual": 0, "cpu_c": 47.0, "gpu_c": 56.0, "psu_c": 57.5, "TN1F_c": 59.0, "request_rpm": 2775, "drivers": ["Tp0C"]}
+{"elapsed_seconds": 40.42, "fan_rpm": 1804, "fan_target_rpm": 1800, "manual": 0, "cpu_c": 47.0, "gpu_c": 56.0, "psu_c": 57.5, "TN1F_c": 59.0, "request_rpm": 2775, "drivers": ["Tp0C"]}
+{"elapsed_seconds": 45.47, "fan_rpm": 1801, "fan_target_rpm": 1800, "manual": 0, "cpu_c": 47.5, "gpu_c": 57.0, "psu_c": 57.75, "TN1F_c": 59.0, "request_rpm": 2900, "drivers": ["Tp0C"]}
+{"elapsed_seconds": 50.53, "fan_rpm": 1788, "fan_target_rpm": 1800, "manual": 0, "cpu_c": 47.0, "gpu_c": 56.0, "psu_c": 58.0, "TN1F_c": 58.75, "request_rpm": 3000, "drivers": ["Tp0C"]}
+{"elapsed_seconds": 55.57, "fan_rpm": 1801, "fan_target_rpm": 1800, "manual": 0, "cpu_c": 47.0, "gpu_c": 56.0, "psu_c": 58.0, "TN1F_c": 58.75, "request_rpm": 3000, "drivers": ["Tp0C"]}
+{"elapsed_seconds": 60.61, "fan_rpm": 1796, "fan_target_rpm": 1800, "manual": 0, "cpu_c": 49.25, "gpu_c": 56.0, "psu_c": 57.75, "TN1F_c": 58.75, "request_rpm": 2900, "drivers": ["Tp0C"]}
+{"elapsed_seconds": 65.68, "fan_rpm": 1799, "fan_target_rpm": 1800, "manual": 0, "cpu_c": 52.0, "gpu_c": 57.0, "psu_c": 57.75, "TN1F_c": 58.75, "request_rpm": 2900, "drivers": ["Tp0C"]}
+{"elapsed_seconds": 70.72, "fan_rpm": 1801, "fan_target_rpm": 1800, "manual": 0, "cpu_c": 47.5, "gpu_c": 57.0, "psu_c": 57.75, "TN1F_c": 58.75, "request_rpm": 2900, "drivers": ["Tp0C"]}
+{"elapsed_seconds": 75.76, "fan_rpm": 3177, "fan_target_rpm": 3425, "manual": 1, "cpu_c": 51.0, "gpu_c": 57.0, "psu_c": 57.75, "TN1F_c": 58.75, "request_rpm": 2900, "drivers": ["Tp0C"]}
+{"elapsed_seconds": 80.8, "fan_rpm": 3361, "fan_target_rpm": 3400, "manual": 1, "cpu_c": 56.0, "gpu_c": 58.0, "psu_c": 57.25, "TN1F_c": 58.75, "request_rpm": 3400, "drivers": ["CPU"]}
+{"elapsed_seconds": 85.86, "fan_rpm": 3609, "fan_target_rpm": 3600, "manual": 1, "cpu_c": 55.0, "gpu_c": 58.0, "psu_c": 58.0, "TN1F_c": 58.75, "request_rpm": 3225, "drivers": ["CPU"]}
+{"elapsed_seconds": 90.94, "fan_rpm": 3664, "fan_target_rpm": 3550, "manual": 1, "cpu_c": 53.0, "gpu_c": 58.0, "psu_c": 57.75, "TN1F_c": 58.75, "request_rpm": 3000, "drivers": ["TN1E"]}
+{"elapsed_seconds": 96.01, "fan_rpm": 3527, "fan_target_rpm": 3525, "manual": 1, "cpu_c": 55.0, "gpu_c": 58.0, "psu_c": 58.25, "TN1F_c": 58.75, "request_rpm": 3225, "drivers": ["CPU"]}
+{"elapsed_seconds": 101.05, "fan_rpm": 3407, "fan_target_rpm": 3575, "manual": 1, "cpu_c": 57.0, "gpu_c": 58.0, "psu_c": 58.0, "TN1F_c": 58.75, "request_rpm": 3575, "drivers": ["CPU"]}
+{"elapsed_seconds": 106.1, "fan_rpm": 3664, "fan_target_rpm": 3750, "manual": 1, "cpu_c": 58.0, "gpu_c": 59.0, "psu_c": 58.0, "TN1F_c": 59.0, "request_rpm": 3750, "drivers": ["CPU"]}
+{"elapsed_seconds": 111.17, "fan_rpm": 3732, "fan_target_rpm": 3925, "manual": 1, "cpu_c": 59.0, "gpu_c": 60.0, "psu_c": 58.0, "TN1F_c": 60.0, "request_rpm": 3925, "drivers": ["CPU"]}
+{"elapsed_seconds": 116.22, "fan_rpm": 3778, "fan_target_rpm": 3675, "manual": 1, "cpu_c": 56.0, "gpu_c": 60.0, "psu_c": 58.0, "TN1F_c": 60.0, "request_rpm": 3400, "drivers": ["CPU", "TN1E"]}
+{"elapsed_seconds": 121.27, "fan_rpm": 3756, "fan_target_rpm": 3750, "manual": 1, "cpu_c": 58.0, "gpu_c": 60.0, "psu_c": 58.0, "TN1F_c": 60.0, "request_rpm": 3750, "drivers": ["CPU"]}
+{"elapsed_seconds": 126.3, "fan_rpm": 3814, "fan_target_rpm": 3925, "manual": 1, "cpu_c": 59.0, "gpu_c": 61.0, "psu_c": 57.75, "TN1F_c": 61.0, "request_rpm": 3925, "drivers": ["CPU"]}
+{"elapsed_seconds": 131.34, "fan_rpm": 3790, "fan_target_rpm": 3675, "manual": 1, "cpu_c": 52.0, "gpu_c": 59.0, "psu_c": 57.75, "TN1F_c": 60.75, "request_rpm": 3200, "drivers": ["TC0H", "TN1E"]}
+{"elapsed_seconds": 136.38, "fan_rpm": 3698, "fan_target_rpm": 3650, "manual": 1, "cpu_c": 52.75, "gpu_c": 59.0, "psu_c": 58.0, "TN1F_c": 60.75, "request_rpm": 3200, "drivers": ["TN1E"]}
+{"elapsed_seconds": 141.44, "fan_rpm": 3698, "fan_target_rpm": 3750, "manual": 1, "cpu_c": 58.0, "gpu_c": 59.0, "psu_c": 57.75, "TN1F_c": 60.75, "request_rpm": 3750, "drivers": ["CPU"]}
+{"elapsed_seconds": 146.51, "fan_rpm": 3622, "fan_target_rpm": 3550, "manual": 1, "cpu_c": 50.5, "gpu_c": 59.0, "psu_c": 58.25, "TN1F_c": 60.75, "request_rpm": 3200, "drivers": ["TN1E"]}
+{"elapsed_seconds": 151.55, "fan_rpm": 3437, "fan_target_rpm": 3400, "manual": 1, "cpu_c": 56.0, "gpu_c": 59.0, "psu_c": 57.5, "TN1F_c": 60.75, "request_rpm": 3400, "drivers": ["CPU"]}

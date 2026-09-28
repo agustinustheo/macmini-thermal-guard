@@ -196,6 +196,81 @@ class Guards(unittest.TestCase):
 
 
 class PolicyTests(unittest.TestCase):
+    def test_hot_automatic_fan_rescue_does_not_wait_for_cool_entry(self):
+        for key, value in [('coretemp/temp2_input', 65), ('nouveau/temp1_input', 70)]:
+            s=sample();s.update(rpm=1800,target=1800)
+            s['independent'][key]=value
+            p=guard.Policy()
+            with self.subTest(sensor=key):
+                self.assertEqual(p.decide(s,0),'manual')
+                self.assertTrue(p.hot_rescue)
+                self.assertEqual(p.reason,'Automatic fan below hot temperature demand')
+
+    def test_hot_smc_channel_can_rescue_undercooling(self):
+        s=sample();s.update(rpm=1800,target=1800);s['temps']['TM0P']=48
+        p=guard.Policy()
+        self.assertEqual(p.decide(s,0),'manual')
+        self.assertTrue(p.hot_rescue)
+
+    def test_rising_temperature_takes_over_at_curve_speed(self):
+        s=sample();s.update(rpm=1800,target=1800)
+        s['independent']['coretemp/temp2_input']=58
+        p=guard.Policy()
+        self.assertEqual(guard.thermal_demand(s,2350),(3750,['CPU']))
+        self.assertEqual(p.decide(s,0),'manual')
+        self.assertTrue(p.thermal_takeover)
+        self.assertFalse(p.hot_rescue)
+
+    @patch.dict('os.environ',{'INVOCATION_ID':'test','WATCHDOG_USEC':'8000000'})
+    @patch('os.geteuid',return_value=0)
+    @patch('guard.signal.signal')
+    @patch('guard.notify')
+    def test_warm_start_above_strict_probe_cutoff_requests_curve_speed(self,*_):
+        h=FakeHardware();h.value.update(rpm=1800,target=1800)
+        h.value['independent']['coretemp/temp2_input']=60
+        clock=[0]
+        def sleep(seconds):
+            clock[0]+=seconds
+            h.value['rpm']=h.value['target']
+            if clock[0]>3:raise guard.StopRequested('done')
+        def restore():
+            h.write('fan1_output',5500);h.write('fan1_manual',0)
+        with patch('guard.time.sleep',side_effect=sleep),patch('guard.time.monotonic',side_effect=lambda:clock[0]),patch('guard.restore',side_effect=restore),patch('guard.emit') as events:
+            with self.assertRaises(guard.StopRequested):guard.control(h,2350)
+        self.assertEqual(h.writes[:3],[('fan1_manual',1),('fan1_output',4100),('fan1_output',4100)])
+        self.assertIn('warm_takeover',[c.args[0] for c in events.call_args_list])
+        self.assertEqual(h.value['manual'],0)
+
+    def test_rescue_leaves_sufficient_automatic_cooling_alone(self):
+        s=sample();s['independent']['coretemp/temp2_input']=65
+        p=guard.Policy()
+        self.assertEqual(p.decide(s,0),'auto')
+        self.assertFalse(p.hot_rescue)
+        s.update(rpm=1800,target=1800)
+        s['independent']['coretemp/temp2_input']=55
+        self.assertEqual(p.decide(s,1),'auto')
+        self.assertFalse(p.hot_rescue)
+
+    @patch.dict('os.environ',{'INVOCATION_ID':'test','WATCHDOG_USEC':'8000000'})
+    @patch('os.geteuid',return_value=0)
+    @patch('guard.signal.signal')
+    @patch('guard.notify')
+    def test_hot_start_writes_maximum_before_shutdown_limit(self,*_):
+        h=FakeHardware();h.value.update(rpm=1800,target=1800)
+        h.value['independent']['coretemp/temp2_input']=65
+        clock=[0]
+        def sleep(seconds):
+            clock[0]+=seconds
+            h.value['rpm']=h.value['target']
+            if clock[0]>3:raise guard.StopRequested('done')
+        def restore():
+            h.write('fan1_output',5500);h.write('fan1_manual',0)
+        with patch('guard.time.sleep',side_effect=sleep),patch('guard.time.monotonic',side_effect=lambda:clock[0]),patch('guard.restore',side_effect=restore),patch('guard.emit') as events:
+            with self.assertRaises(guard.StopRequested):guard.control(h,2350)
+        self.assertEqual(h.writes[:3],[('fan1_manual',1),('fan1_output',5500),('fan1_output',5450)])
+        self.assertIn('hot_rescue',[c.args[0] for c in events.call_args_list])
+        self.assertEqual(h.value['manual'],0)
+
     def test_related_channels_do_not_force_old_gpu_maximum(self):
         s=sample()
         s['temps'].update(TC0D=48,TC0H=42,TC0P=40,TC0p=40,

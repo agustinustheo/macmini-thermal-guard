@@ -29,6 +29,11 @@ LIMITS = {
 
 # Lowest supervised workaround floor; still above this model's 1800 RPM minimum.
 MIN_MANUAL_RPM = 2350
+# An already-hot machine cannot wait for the quiet-mode startup gate when
+# firmware automatic control requests less cooling than the thermal curve.
+AUTO_WARM_RPM = 3500
+AUTO_RESCUE_RPM = 4300
+AUTO_RESCUE_RPM_GAP = 250
 
 # Custom operating curves, not manufacturer ratings. CPU/MCP proximity and
 # heatsink channels keep lower endpoints than junction/die channels.
@@ -294,6 +299,8 @@ class Policy:
     def __init__(self):
         self.mode = 'auto'
         self.quiet_since = None
+        self.thermal_takeover = False
+        self.hot_rescue = False
         self.reason = 'Waiting for 30 seconds of cool temperatures'
 
     def decide(self, snap, now):
@@ -305,6 +312,17 @@ class Policy:
             snap['temps'][k] >= threshold for k, threshold in FULL_COOLING.items())
         if self.mode == 'manual':
             self.reason = 'Temperature override: maximum manual cooling' if hot else 'All-component temperature curve'
+            return self.mode
+        # Compare actual cooling with the temperature request at the supported
+        # lowest floor; a higher configured floor is not itself a hot event.
+        request, _ = thermal_demand(snap, MIN_MANUAL_RPM)
+        undercooled = min(snap['rpm'], snap['target']) < request - AUTO_RESCUE_RPM_GAP
+        if request >= AUTO_WARM_RPM and undercooled:
+            self.mode = 'manual'
+            self.thermal_takeover = True
+            self.hot_rescue = request >= AUTO_RESCUE_RPM
+            self.quiet_since = None
+            self.reason = 'Automatic fan below hot temperature demand' if self.hot_rescue else 'Automatic fan below rising temperature demand'
             return self.mode
         entry_margins_ok = all(snap['temps'][k] <= limit
                                for k, limit in ENTRY_MAX.items())
@@ -384,16 +402,20 @@ def control(hw, minimum=4300):
                 raise Unsafe('Fan target changed unexpectedly')
             if mode == 'manual' and time.monotonic() - last_increase > 15 and snap['rpm'] < target - 250:
                 raise Unsafe('Fan not keeping up with requested cooling')
+            request, drivers = thermal_demand(snap, minimum)
             wanted = policy.decide(snap, time.monotonic())
             if wanted == 'manual' and mode == 'auto':
-                check(snap)
+                # Strict probe cutoffs apply to quiet takeover. A rising
+                # temperature requires cooling even above those cutoffs.
+                check(snap, enforce_cutoffs=not policy.thermal_takeover)
+                initial_target = baseline['maximum'] if not policy.thermal_takeover or policy.hot_rescue else request
                 hw.write('fan1_manual', 1)
-                hw.write('fan1_output', 5500)
+                hw.write('fan1_output', initial_target)
                 mode = 'manual'
-                target = 5500
+                target = initial_target
                 last_increase = time.monotonic()
-                emit('quiet_mode', reason=policy.reason, **snap)
-            request, drivers = thermal_demand(snap, minimum)
+                event = 'hot_rescue' if policy.hot_rescue else ('warm_takeover' if policy.thermal_takeover else 'quiet_mode')
+                emit(event, reason=policy.reason, **snap)
             if mode == 'manual':
                 # Raise cooling immediately; lower by no more than 50 RPM/sec.
                 new_target = max(request, target - 50)
