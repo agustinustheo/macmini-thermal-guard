@@ -2,7 +2,7 @@
 
 **Current CPU/GPU update:** see [CPU-GPU-PROFILE.md](CPU-GPU-PROFILE.md) for
 separate ramp endpoints, source notes and the complete current SMC ramp table.
-The [hot-start cooling record](../evidence/HOT-START-COOLING-FIX.md) explains
+The [hot-start cooling record](CPU-GPU-PROFILE.md#hot-startup-cooling-gap) explains
 the later automatic-mode cooling gap and revised takeover behavior.
 
 **Current PSU update:** the [gradual PSU table](WIDE-PSU-PROFILE.md) is installed,

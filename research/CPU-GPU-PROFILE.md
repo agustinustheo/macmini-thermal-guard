@@ -105,7 +105,7 @@ cool. These paths still check required sensors and SMC fault flags, but do
 not apply cool-start cutoffs or wait thirty seconds. The fixed reference floor
 prevents a higher configured idle floor alone from triggering takeover. Once
 manual, normal temperature changes never hand control back to firmware. See
-the [incident and validation record](../evidence/HOT-START-COOLING-FIX.md).
+the [incident and validation record](#hot-startup-cooling-gap).
 
 Runtime increases are immediate; target decreases remain limited to 50 RPM
 per approximately one-second loop. This is asymmetric slew limiting, not
@@ -131,5 +131,51 @@ unchanged critical shutdowns, fan tracking and fault restoration.
 
 See [the local observation](../evidence/CPU-GPU-VALIDATION.md) for measured
 response. No intentional overheating, synthetic stress or real poweroff test.
-The later [hot-start cooling revision](../evidence/HOT-START-COOLING-FIX.md)
+The later [hot-start cooling revision](#hot-startup-cooling-gap)
 adds earlier takeover and has 68 passing simulations.
+
+## Hot startup cooling gap
+
+A previous boot reached the controller's sustained CPU shutdown threshold.
+The service requested and completed an orderly poweroff. The thermal readings
+were valid and SMC fault flags in the logged samples were zero.
+
+| Previous-boot sample | Highest CPU | GPU | PSU-labelled sensor | Fan actual / target | Controller mode |
+| --- | ---: | ---: | ---: | ---: | --- |
+| First recorded control sample | 68 C | 71 C | 61.25 C | 1807 / 1800 RPM | Automatic |
+| Next recorded control sample | 71 C | 72 C | 60.5 C | 1797 / 1800 RPM | Automatic |
+
+The log then recorded `critical_temperature` and `poweroff_requested` with
+`CPU >= 70 C for 10 seconds`. Systemd completed the shutdown. These samples
+show a firmware automatic fan target of 1800 RPM even while the controller's
+calculated temperature request was 5500 RPM. The controller did not write a
+new fan target because its previous automatic-to-manual transition required
+thirty cool seconds and a firmware fan already near maximum.
+
+The first installed revision of this fix had a live rescue event: firmware
+automatic mode was still targeting 1800 RPM at CPU 62 C; the controller
+entered manual mode at 5500 RPM, actual fan speed subsequently reached about
+5000 RPM, and CPU fell to about 52 C in later journal samples. No new critical
+temperature event was recorded during that interval. The final revision adds
+the earlier 3500 RPM takeover without changing the proven hot rescue path.
+
+The [relative-time deployment samples](../evidence/hot-start-deployment-observation.jsonl)
+cover the first two minutes after that initial rescue-capable revision was
+installed.
+
+The final revision's [relative-time samples](../evidence/warm-takeover-deployment-observation.jsonl)
+and [summary](../evidence/warm-takeover-deployment-summary.json) cover 151.55 seconds and
+31 snapshots. Automatic fan control started near 1800 RPM. A `warm_takeover`
+event occurred at CPU 57 C, GPU 58 C and PSU 58.25 C while actual fan speed
+was 1791 RPM and firmware target 1800 RPM. The new controller entered manual
+mode at its calculated curve speed. During the observation the fan reached
+3814 RPM, CPU peaked at 59 C, GPU at 61 C, and PSU at 58.25 C. The final
+sample showed CPU 56 C, fan 3437 RPM and target 3400 RPM. The service was
+active and enabled at boot; eighteen fault-flag samples were zero. No critical
+event, failed fan tracking or automatic restoration occurred.
+
+The previous 1800-RPM-at-71-C behavior was not recreated on hardware. These
+observations demonstrate the earlier live takeover and subsequent fan response,
+but cannot guarantee that hidden hardware faults or future high-load events
+will be safe. No deliberate heating or actual shutdown was performed for this
+validation.

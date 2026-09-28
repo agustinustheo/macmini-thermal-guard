@@ -30,6 +30,12 @@ References to raw diagnostic artifacts in the historical audit describe that
 private archive. Only the reviewed report, aggregate summary and anonymized
 sample series are published.
 
+## Publishing updates
+
+Anonymize new evidence before staging it. Reuse the README and existing
+research documents for updates instead of adding a Markdown report for each
+change or observation. Consolidate overlapping documentation where practical.
+
 ## Validation and limits
 
 The privacy review checked every file version in all five pre-cleanup commits

@@ -7,7 +7,7 @@ authorship exceptions, and handling of private diagnostic records.
 uses a 2350 RPM floor, the [gradual PSU table](research/WIDE-PSU-PROFILE.md),
 the [wider CPU/GPU ramps](research/CPU-GPU-PROFILE.md),
 and controlled shutdown for critical temperatures.
-An [observed hot-start rescue](evidence/HOT-START-COOLING-FIX.md) now informs
+An [observed hot-start rescue](research/CPU-GPU-PROFILE.md#hot-startup-cooling-gap) now informs
 the earlier rising-temperature takeover. An earlier
 [CPU/GPU deployment observation](evidence/CPU-GPU-VALIDATION.md) stayed in
 automatic mode while startup temperatures failed to qualify. Long-term
@@ -109,7 +109,7 @@ across the machine; CPU utilization is neither sampled nor used as a trigger.
   curve as readings cool. These paths do not wait for quiet-start qualification.
   A previous boot reached the CPU shutdown threshold while firmware automatic
   control still targeted 1800 RPM; see the
-  [cooling-gap audit](evidence/HOT-START-COOLING-FIX.md).
+  [cooling-gap audit](research/CPU-GPU-PROFILE.md#hot-startup-cooling-gap).
 - Once in manual mode, ordinary temperature changes only adjust RPM; they do
   not hand cooling back to firmware. Automatic mode returns on startup before
   takeover or when the service stops, fails, restarts, or the machine sleeps.
