@@ -511,6 +511,90 @@ class PolicyTests(unittest.TestCase):
         restore.assert_called_once()
 
 
+class BoostTests(unittest.TestCase):
+    def exercise(self, hardware, duration=3, steps=6, tick=None):
+        clock=[0];writes=[];original=hardware.write
+        def write(name,value):
+            writes.append((clock[0],name,value));original(name,value)
+        hardware.write=write
+        def sleep(seconds):
+            clock[0]+=seconds
+            hardware.value['rpm']=hardware.value['target']
+            if tick:tick(clock[0],hardware)
+            if clock[0]>steps:raise guard.StopRequested('done')
+        with patch.dict('os.environ',{'INVOCATION_ID':'test','WATCHDOG_USEC':'8000000'}), \
+                patch('os.geteuid',return_value=0),patch('guard.signal.signal'), \
+                patch('guard.time.sleep',side_effect=sleep), \
+                patch('guard.time.monotonic',side_effect=lambda:clock[0]), \
+                patch('guard.notify'),patch('guard.emit') as events, \
+                patch('guard.restore') as restore, \
+                patch('guard.request_poweroff',return_value=True) as poweroff:
+            try:guard.control(hardware,2350,duration)
+            except (guard.StopRequested,guard.Unsafe,OSError) as exc:error=exc
+            else:raise AssertionError('Control loop unexpectedly returned')
+        return error,writes,events,restore,poweroff
+
+    def test_boost_starts_while_warm_and_expires_with_gradual_slowdown(self):
+        h=FakeHardware();h.value['independent']['coretemp/temp2_input']=62
+        error,writes,events,restore,_=self.exercise(h)
+        self.assertIsInstance(error,guard.StopRequested)
+        targets={t:v for t,n,v in writes if n=='fan1_output'}
+        self.assertEqual(targets[1],5500)
+        self.assertEqual(targets[2],5500)
+        self.assertEqual(targets[3],5450)
+        self.assertEqual(targets[6],5300)
+        self.assertEqual(h.value['manual'],1)
+        self.assertEqual([c.args[0] for c in events.call_args_list].count('boost_started'),1)
+        self.assertEqual([c.args[0] for c in events.call_args_list].count('boost_finished'),1)
+        restore.assert_called_once()
+
+    def test_boost_expiry_keeps_maximum_when_temperature_demands_it(self):
+        h=FakeHardware();h.value['independent']['coretemp/temp2_input']=68
+        error,writes,_,_,_=self.exercise(h)
+        self.assertIsInstance(error,guard.StopRequested)
+        self.assertTrue(all(v==5500 for _,n,v in writes if n=='fan1_output'))
+
+    def test_boost_refuses_existing_smc_fault_before_manual_control(self):
+        h=FakeHardware();h.faults=lambda:{'SBF':1}
+        error,writes,_,_,_=self.exercise(h)
+        self.assertIsInstance(error,guard.Unsafe)
+        self.assertEqual(writes,[])
+
+    def test_boost_retains_runtime_fault_and_sensor_guards(self):
+        for fault in ('sensor','smc'):
+            h=FakeHardware()
+            def tick(t,hw):
+                if t==2:
+                    if fault=='sensor':del hw.value['temps']['Tp0C']
+                    else:hw.faults=lambda:{'SBF':1}
+            with self.subTest(fault=fault):
+                error,writes,_,restore,_=self.exercise(h,tick=tick)
+                self.assertIsInstance(error,guard.Unsafe)
+                self.assertTrue(any(n=='fan1_output' and v==5500 for _,n,v in writes))
+                restore.assert_called_once()
+
+    def test_boost_retains_critical_shutdown(self):
+        h=FakeHardware()
+        def tick(t,hw):hw.value['independent']['coretemp/temp2_input']=70
+        error,_,_,restore,poweroff=self.exercise(h,duration=30,steps=13,tick=tick)
+        self.assertIsInstance(error,guard.StopRequested)
+        poweroff.assert_called_once()
+        restore.assert_called_once()
+
+    def test_boost_retains_fan_tracking(self):
+        h=FakeHardware();h.value.update(rpm=2350,target=2350)
+        def tick(t,hw):hw.value['rpm']=2350
+        error,_,_,restore,_=self.exercise(h,duration=30,steps=20,tick=tick)
+        self.assertIsInstance(error,guard.Unsafe)
+        self.assertIn('Fan not keeping up',str(error))
+        restore.assert_called_once()
+
+    def test_boost_duration_is_bounded(self):
+        for duration in (-1,601,float('nan'),True):
+            with self.subTest(duration=duration),self.assertRaises(guard.Unsafe):
+                guard.control(FakeHardware(),2350,duration)
+
+
 class ShutdownTests(unittest.TestCase):
     @staticmethod
     def hot(key, value):

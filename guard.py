@@ -343,9 +343,11 @@ class Policy:
         return self.mode
 
 
-def control(hw, minimum=4300):
+def control(hw, minimum=4300, boost_seconds=0):
     if not MIN_MANUAL_RPM <= minimum <= 4300:
         raise Unsafe(f'Manual floor must be {MIN_MANUAL_RPM}–4300 RPM')
+    if type(boost_seconds) is not int or not 0 <= boost_seconds <= 600:
+        raise Unsafe('Temporary cooling boost must be 0–600 seconds')
     if os.geteuid() != 0 or not os.environ.get('INVOCATION_ID'):
         raise Unsafe('Control requires systemd supervision')
     watchdog = int(os.environ.get('WATCHDOG_USEC', '0'))
@@ -362,7 +364,8 @@ def control(hw, minimum=4300):
         raise StopRequested(f'Stopped by signal {signum}')
     for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
         signal.signal(sig, stop)
-    emit('control_start', faults=faults, idle_floor=minimum, **baseline)
+    emit('control_start', faults=faults, idle_floor=minimum, boost_seconds=boost_seconds, **baseline)
+    boost_until = time.monotonic() + boost_seconds if boost_seconds else 0
     target = 5500
     last_increase = time.monotonic()
     logged = 0
@@ -404,17 +407,28 @@ def control(hw, minimum=4300):
                 raise Unsafe('Fan not keeping up with requested cooling')
             request, drivers = thermal_demand(snap, minimum)
             wanted = policy.decide(snap, time.monotonic())
+            boost_active = time.monotonic() < boost_until
+            if boost_active:
+                # A user boost only increases cooling. Sensor validation,
+                # fault checks, fan tracking and critical shutdown run first.
+                request = baseline['maximum']
+                drivers = ['user_boost']
+                wanted = policy.mode = 'manual'
+                policy.reason = 'Temporary maximum cooling requested'
+            elif boost_until:
+                emit('boost_finished', reason='Returning to temperature curve')
+                boost_until = 0
             if wanted == 'manual' and mode == 'auto':
                 # Strict probe cutoffs apply to quiet takeover. A rising
                 # temperature requires cooling even above those cutoffs.
-                check(snap, enforce_cutoffs=not policy.thermal_takeover)
-                initial_target = baseline['maximum'] if not policy.thermal_takeover or policy.hot_rescue else request
+                check(snap, enforce_cutoffs=not (policy.thermal_takeover or boost_active))
+                initial_target = baseline['maximum'] if boost_active or not policy.thermal_takeover or policy.hot_rescue else request
                 hw.write('fan1_manual', 1)
                 hw.write('fan1_output', initial_target)
                 mode = 'manual'
                 target = initial_target
                 last_increase = time.monotonic()
-                event = 'hot_rescue' if policy.hot_rescue else ('warm_takeover' if policy.thermal_takeover else 'quiet_mode')
+                event = 'boost_started' if boost_active else ('hot_rescue' if policy.hot_rescue else ('warm_takeover' if policy.thermal_takeover else 'quiet_mode'))
                 emit(event, reason=policy.reason, **snap)
             if mode == 'manual':
                 # Raise cooling immediately; lower by no more than 50 RPM/sec.
@@ -494,7 +508,11 @@ def main():
     parser.add_argument('--seconds', type=int, default=30)
     parser.add_argument('--rpm', type=int, default=5000)
     parser.add_argument('--min-rpm', type=int, default=4300)
+    parser.add_argument('--boost-seconds', type=int, default=0,
+                        help='Start control with 0–600 seconds at maximum fan speed')
     args = parser.parse_args()
+    if args.boost_seconds and args.mode != 'control':
+        parser.error('--boost-seconds requires control mode')
     if args.mode == 'restore':
         restore()
         return
@@ -519,7 +537,7 @@ def main():
         with open('/run/macmini-thermal-guard/control.lock', 'w') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             if args.mode == 'control':
-                control(hw, args.min_rpm)
+                control(hw, args.min_rpm, args.boost_seconds)
             else:
                 probe(hw, args.seconds, args.rpm)
 

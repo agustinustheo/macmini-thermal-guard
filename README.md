@@ -95,6 +95,13 @@ across the machine; CPU utilization is neither sampled nor used as a trigger.
 - Full cooling stays in manual mode while the controller is healthy. Even
   100% CPU activity does not trigger automatic handoff; actual temperatures
   can still request maximum cooling.
+- An optional `control --boost-seconds 300` requests five minutes at the
+  SMC-reported maximum, then returns to the temperature curve with the existing
+  gradual slowdown. Duration is limited to 600 seconds and defaults to zero.
+  A boost retains sensor/fault checks, fan tracking, watchdog supervision and
+  critical-temperature shutdown. It can start while warm because its initial
+  command increases cooling to maximum. Temporary service overrides should
+  be removed after startup so later restarts use the normal configuration.
 - At startup, firmware controls the fan. Quiet-mode entry requires 30 continuous seconds
   with CPU no higher than 54 C, GPU no higher than 57 C, and every SMC
   reading within its separate `ENTRY_MAX` ceiling (PSU no higher than 58 C).
