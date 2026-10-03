@@ -358,8 +358,10 @@ def control(hw, minimum=4300, boost_seconds=0):
     if baseline['manual'] != 0:
         raise Unsafe('Existing manual controller detected')
     faults = hw.faults()
-    if any(faults.values()):
-        raise Unsafe(f'SMC fault/thermal flag set: {faults}')
+    # SPHS records protection history, not necessarily a current fault. Keep
+    # the conservative cooling latch for any flagged status without abandoning
+    # temperature monitoring or clearing an unexplained firmware indication.
+    fault_latched = dict(faults) if any(faults.values()) else None
     def stop(signum, frame):
         raise StopRequested(f'Stopped by signal {signum}')
     for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
@@ -386,6 +388,8 @@ def control(hw, minimum=4300, boost_seconds=0):
                 # Shutdown must still be attempted if the cooling write fails.
                 # Once latched, never resume a reduced fan target in this run.
                 try:
+                    if hw.read('fan1_manual') == 0:
+                        hw.write('fan1_manual', 1)
                     hw.write('fan1_output', baseline['maximum'])
                     target = baseline['maximum']
                 except OSError as exc:
@@ -397,14 +401,35 @@ def control(hw, minimum=4300, boost_seconds=0):
                 continue
             check(snap, enforce_cutoffs=False)
             faults = hw.faults()
-            if any(faults.values()):
-                raise Unsafe(f'SMC fault/thermal flag: {faults}')
-            if snap['manual'] != (1 if mode == 'manual' else 0):
+            if any(faults.values()) and fault_latched is None:
+                fault_latched = dict(faults)
+            if snap['manual'] != (0 if mode == 'auto' else 1):
                 raise Unsafe('Controller ownership lost; refusing to fight SMC/another daemon')
-            if mode == 'manual' and abs(snap['target'] - target) > 10:
+            if mode != 'auto' and abs(snap['target'] - target) > 10:
                 raise Unsafe('Fan target changed unexpectedly')
-            if mode == 'manual' and time.monotonic() - last_increase > 15 and snap['rpm'] < target - 250:
+            if mode != 'auto' and time.monotonic() - last_increase > 15 and snap['rpm'] < target - 250:
                 raise Unsafe('Fan not keeping up with requested cooling')
+            if fault_latched is not None:
+                if mode != 'fault_hold':
+                    if mode == 'auto':
+                        hw.write('fan1_manual', 1)
+                    hw.write('fan1_output', baseline['maximum'])
+                    target = baseline['maximum']
+                    last_increase = time.monotonic()
+                    mode = 'fault_hold'
+                    emit('fault_cooling_latched', flags=fault_latched,
+                         reason='Maximum cooling; temperature shutdown remains active')
+                hw.write('fan1_output', baseline['maximum'])
+                if abs(hw.read('fan1_output') - baseline['maximum']) > 10:
+                    raise Unsafe('Fault cooling command readback mismatch')
+                notify(f'WATCHDOG=1\nSTATUS=Fault cooling latched; fan {snap["rpm"]} RPM; temperature shutdown active')
+                if time.monotonic() - logged >= 10:
+                    emit('control', mode=mode, reason='Unexplained SMC status; maximum cooling latched',
+                         thermal_demand=baseline['maximum'], drivers=['fault_hold'],
+                         requested=baseline['maximum'], faults=faults,
+                         latched_flags=fault_latched, **snap)
+                    logged = time.monotonic()
+                continue
             request, drivers = thermal_demand(snap, minimum)
             wanted = policy.decide(snap, time.monotonic())
             boost_active = time.monotonic() < boost_until

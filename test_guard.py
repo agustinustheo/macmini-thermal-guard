@@ -511,7 +511,7 @@ class PolicyTests(unittest.TestCase):
         restore.assert_called_once()
 
 
-class BoostTests(unittest.TestCase):
+class ControllerHarness:
     def exercise(self, hardware, duration=3, steps=6, tick=None):
         clock=[0];writes=[];original=hardware.write
         def write(name,value):
@@ -534,6 +534,8 @@ class BoostTests(unittest.TestCase):
             else:raise AssertionError('Control loop unexpectedly returned')
         return error,writes,events,restore,poweroff
 
+
+class BoostTests(ControllerHarness, unittest.TestCase):
     def test_boost_starts_while_warm_and_expires_with_gradual_slowdown(self):
         h=FakeHardware();h.value['independent']['coretemp/temp2_input']=62
         error,writes,events,restore,_=self.exercise(h)
@@ -554,11 +556,13 @@ class BoostTests(unittest.TestCase):
         self.assertIsInstance(error,guard.StopRequested)
         self.assertTrue(all(v==5500 for _,n,v in writes if n=='fan1_output'))
 
-    def test_boost_refuses_existing_smc_fault_before_manual_control(self):
+    def test_boost_is_superseded_by_latched_fault_cooling(self):
         h=FakeHardware();h.faults=lambda:{'SBF':1}
-        error,writes,_,_,_=self.exercise(h)
-        self.assertIsInstance(error,guard.Unsafe)
-        self.assertEqual(writes,[])
+        error,writes,events,_,_=self.exercise(h)
+        self.assertIsInstance(error,guard.StopRequested)
+        self.assertTrue(all(v==5500 for _,n,v in writes if n=='fan1_output'))
+        self.assertIn('fault_cooling_latched',[c.args[0] for c in events.call_args_list])
+        self.assertNotIn('boost_started',[c.args[0] for c in events.call_args_list])
 
     def test_boost_retains_runtime_fault_and_sensor_guards(self):
         for fault in ('sensor','smc'):
@@ -569,7 +573,7 @@ class BoostTests(unittest.TestCase):
                     else:hw.faults=lambda:{'SBF':1}
             with self.subTest(fault=fault):
                 error,writes,_,restore,_=self.exercise(h,tick=tick)
-                self.assertIsInstance(error,guard.Unsafe)
+                self.assertIsInstance(error,guard.Unsafe if fault=='sensor' else guard.StopRequested)
                 self.assertTrue(any(n=='fan1_output' and v==5500 for _,n,v in writes))
                 restore.assert_called_once()
 
@@ -593,6 +597,65 @@ class BoostTests(unittest.TestCase):
         for duration in (-1,601,float('nan'),True):
             with self.subTest(duration=duration),self.assertRaises(guard.Unsafe):
                 guard.control(FakeHardware(),2350,duration)
+
+
+class FaultHoldTests(ControllerHarness, unittest.TestCase):
+    def test_each_flag_at_startup_latches_maximum_without_stopping_monitoring(self):
+        for flag in ('SBF','MSSF','SPHR','SPHS'):
+            h=FakeHardware();h.value.update(rpm=1800,target=1800)
+            h.faults=lambda:{flag:1}
+            with self.subTest(flag=flag):
+                error,writes,events,restore,poweroff=self.exercise(h,duration=0)
+                self.assertIsInstance(error,guard.StopRequested)
+                targets=[v for _,name,v in writes if name=='fan1_output']
+                self.assertTrue(targets)
+                self.assertTrue(all(v==5500 for v in targets))
+                self.assertEqual(h.value['manual'],1)
+                self.assertIn('fault_cooling_latched',[c.args[0] for c in events.call_args_list])
+                poweroff.assert_not_called()
+                restore.assert_called_once()
+
+    def test_flag_after_quiet_takeover_latches_even_when_it_later_clears(self):
+        h=FakeHardware()
+        def tick(t,hw):
+            hw.faults=lambda:{'SPHS':1 if t==110 else 0}
+        error,writes,events,_,_=self.exercise(h,duration=0,steps=125,tick=tick)
+        self.assertIsInstance(error,guard.StopRequested)
+        targets={t:v for t,name,v in writes if name=='fan1_output'}
+        self.assertEqual(targets[109],2350)
+        self.assertTrue(all(v==5500 for t,v in targets.items() if t>=110))
+        self.assertEqual([c.args[0] for c in events.call_args_list].count('fault_cooling_latched'),1)
+
+    def test_sustained_component_heat_still_shuts_down_during_fault_hold(self):
+        for sensor,temperature in [('CPU',70),('TN1F',75),('Tp0C',65)]:
+            h=FakeHardware();h.faults=lambda:{'SPHS':1}
+            def tick(t,hw):
+                if t>=3:
+                    if sensor=='CPU':hw.value['independent']['coretemp/temp2_input']=temperature
+                    else:hw.value['temps'][sensor]=temperature
+            with self.subTest(sensor=sensor):
+                error,writes,_,_,poweroff=self.exercise(h,duration=0,steps=15,tick=tick)
+                self.assertIsInstance(error,guard.StopRequested)
+                poweroff.assert_called_once()
+                self.assertTrue(all(v==5500 for _,name,v in writes if name=='fan1_output'))
+
+    def test_emergency_at_auto_startup_selects_manual_maximum_and_shuts_down(self):
+        h=FakeHardware();h.value.update(rpm=2450,target=2450)
+        h.value['temps']['TN1D']=84
+        error,writes,_,_,poweroff=self.exercise(h,duration=0,steps=2)
+        self.assertIsInstance(error,guard.StopRequested)
+        poweroff.assert_called_once()
+        self.assertIn((1,'fan1_manual',1),writes)
+        self.assertEqual(h.value['target'],5500)
+
+    def test_fault_hold_keeps_write_readback_and_fan_tracking_guards(self):
+        h=FakeHardware();h.value.update(rpm=2350,target=2350)
+        h.faults=lambda:{'SPHS':1}
+        def tick(t,hw):hw.value['rpm']=2350
+        error,_,_,restore,_=self.exercise(h,duration=0,steps=20,tick=tick)
+        self.assertIsInstance(error,guard.Unsafe)
+        self.assertIn('Fan not keeping up',str(error))
+        restore.assert_called_once()
 
 
 class ShutdownTests(unittest.TestCase):

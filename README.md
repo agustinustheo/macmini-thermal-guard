@@ -3,7 +3,7 @@
 Published evidence is anonymized; see [PRIVACY.md](PRIVACY.md) for scope,
 authorship exceptions, and handling of private diagnostic records.
 
-**Operating status, 2026-09-28: running and enabled at boot.** The quieter profile
+**Operating status, 2026-10-04: running and enabled at boot.** The quieter profile
 uses a 2350 RPM floor, the [gradual PSU table](research/WIDE-PSU-PROFILE.md),
 the [wider CPU/GPU ramps](research/CPU-GPU-PROFILE.md),
 and controlled shutdown for critical temperatures.
@@ -121,12 +121,18 @@ across the machine; CPU utilization is neither sampled nor used as a trigger.
   not hand cooling back to firmware. Automatic mode returns on startup before
   takeover or when the service stops, fails, restarts, or the machine sleeps.
 - Status and journal entries identify the sensor(s) driving the thermal request
-  (`CPU`, `GPU`, an SMC channel ID, or `idle floor`). During gradual slowdown,
+  (`CPU`, `GPU`, an SMC channel ID, `idle floor`, or `fault_hold`). During gradual slowdown,
   the current target may remain above that request.
 - Unknown constant `*G` channels are retained in logs but not assumed to be
   physical-temperature readings. Monitoring them as real 70–90 C sensors
   without a model-specific interpretation would give misleading results.
 - Checks required sensors and fault flags every approximately 1 second.
+- An SMC sensor/fan/protection flag, including the historical `SPHS` flag,
+  latches maximum manual cooling for the rest of that service run. The service
+  stays active, keeps validating temperatures and checks controlled-shutdown
+  thresholds. Clearing flags later does not silently resume a quieter curve.
+  This preserves cooling while the reason for the firmware indication remains
+  unexplained; it neither clears the flag nor diagnoses its physical cause.
 - Lowers the target by at most 50 RPM per second, but increases it immediately
   when needed. Checks command readback and actual RPM against the manual target.
 - Rejects missing/implausible readings, unexpected model/fan limits,
@@ -135,7 +141,8 @@ across the machine; CPU utilization is neither sampled nor used as a trigger.
 - An independent systemd watchdog detects an unresponsive process within
   approximately 8 seconds; stop timeout is 3 seconds. `ExecStopPost` requests
   5500 RPM then restores automatic mode. A `finally` handler does the same
-  on normal termination or exceptions. No automatic restart after a fault.
+  on normal termination or exceptions. No automatic restart after an exception.
+  SMC status flags instead enter the monitored maximum-cooling latch above.
 - Starts automatically with Linux, waiting up to 30 seconds for sensor drivers.
   Starts in automatic mode and first verifies continuously cool temperatures.
 - Stops before system sleep through a conflict with `sleep.target`.
@@ -161,6 +168,16 @@ precautionary operating cutoffs, not verified component damage limits.
 Cooling requests 5500 RPM below these thresholds (CPU by 2 C, GPU by 3 C).
 The numeric margins do not guarantee cooling or shutdown response time. A valid critical reading
 with grossly inadequate fan RPM also requests poweroff immediately.
+
+An observed failure exposed a gap: an SMC status flag stopped the old controller,
+and firmware later ran the fan near 2500 RPM with independent CPU/GPU readings
+around 84 C. An orderly shutdown was requested. Flagged status now keeps the
+controller running at maximum cooling with temperature shutdown active. Critical
+cooling also selects manual mode before commanding maximum, so an automatic
+firmware target cannot immediately lower that command. This does not establish
+why firmware cooling or the SMC indication behaved unexpectedly. Sensor read,
+fan-control, ownership and process failures can still terminate the service;
+its automatic-mode restoration is not a guarantee of maximum cooling.
 
 Once triggered, shutdown remains latched even if temperatures fall. The controller
 keeps requesting maximum cooling, calls `systemctl --no-block poweroff`, and retries
