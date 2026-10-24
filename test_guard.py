@@ -1,5 +1,7 @@
 import copy
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 import guard
 
@@ -17,6 +19,8 @@ class FakeHardware:
         self.writes=[]
     def snapshot(self): return copy.deepcopy(self.value)
     def faults(self): return {'SBF':0, 'MSSF':0,'SPHR':0,'SPHS':0}
+    # No cpufreq control: the controller keeps the earlier 70 C CPU limits.
+    def cpu_speed(self): return None
     def read(self, name): return self.value[{'fan1_manual':'manual','fan1_output':'target'}[name]]
     def write(self, name, value):
         self.writes.append((name,value))
@@ -303,7 +307,7 @@ class PolicyTests(unittest.TestCase):
             self.assertLess(high,guard.SHUTDOWN_LIMITS[key])
 
     def test_cpu_gpu_new_full_speed_and_unchanged_shutdown(self):
-        for group,full,critical,emergency in [('CPU',68,70,85),('GPU',72,75,90)]:
+        for group,full,critical,emergency in [('CPU',68,85,90),('GPU',72,75,90)]:
             self.assertEqual(guard.SHUTDOWN_LIMITS[group],critical)
             self.assertEqual(guard.EMERGENCY_LIMITS[group],emergency)
             s=ShutdownTests.hot(group,full)
@@ -683,20 +687,20 @@ class ShutdownTests(unittest.TestCase):
 
     def test_short_spike_and_alternating_hot_sensors_do_not_accumulate(self):
         p=guard.ThermalShutdown()
-        self.assertFalse(p.update(self.hot('CPU',70),0))
+        self.assertFalse(p.update(self.hot('CPU',85),0))
         self.assertFalse(p.update(sample(),9))
-        self.assertFalse(p.update(self.hot('CPU',70),10))
+        self.assertFalse(p.update(self.hot('CPU',85),10))
         self.assertFalse(p.update(self.hot('GPU',75),19))
-        self.assertFalse(p.update(self.hot('CPU',70),20))
-        self.assertFalse(p.update(self.hot('CPU',70),29))
-        self.assertTrue(p.update(self.hot('CPU',70),30))
+        self.assertFalse(p.update(self.hot('CPU',85),20))
+        self.assertFalse(p.update(self.hot('CPU',85),29))
+        self.assertTrue(p.update(self.hot('CPU',85),30))
 
     def test_emergency_readings_trigger_without_delay(self):
         for key,limit in guard.EMERGENCY_LIMITS.items():
             self.assertTrue(guard.ThermalShutdown().update(self.hot(key,limit),0))
 
     def test_hot_reading_with_stalled_fan_does_not_wait(self):
-        s=self.hot('CPU',70);s['rpm']=0
+        s=self.hot('CPU',85);s['rpm']=0
         self.assertTrue(guard.ThermalShutdown().update(s,0))
 
     def test_invalid_sensors_are_not_treated_as_a_valid_thermal_event(self):
@@ -745,6 +749,147 @@ class ShutdownTests(unittest.TestCase):
         self.assertEqual(poweroff.call_count,2)
         self.assertTrue(all(value==5500 for t,name,value in writes if t>=131 and name=='fan1_output'))
         restore.assert_called_once()
+
+
+def cpufreq_tree(root, levels=(1596000,1862000,2128000,2394000), cores=2):
+    for core in range(cores):
+        policy=Path(root)/f'cpu{core}'/'cpufreq';policy.mkdir(parents=True)
+        (policy/'scaling_available_frequencies').write_text(' '.join(map(str,sorted(levels,reverse=True))))
+        (policy/'cpuinfo_max_freq').write_text(str(max(levels)))
+        (policy/'scaling_max_freq').write_text(str(max(levels)))
+    return Path(root)
+
+
+class FakeSpeed:
+    levels=[1596000,1862000,2128000,2394000];maximum=2394000
+    def __init__(self,fail_after=None):
+        self.writes=[];self.fail_after=fail_after
+    def set(self,khz):
+        if self.fail_after is not None and len(self.writes)>=self.fail_after:
+            raise OSError('cpufreq write failed')
+        self.writes.append(khz)
+
+
+class CpuSpeedTests(unittest.TestCase):
+    def test_cpu_limits_depend_on_speed_control(self):
+        self.assertEqual((guard.SHUTDOWN_LIMITS['CPU'],guard.SHUTDOWN_LIMITS['TC0D']),(85,85))
+        self.assertEqual((guard.EMERGENCY_LIMITS['CPU'],guard.EMERGENCY_LIMITS['TC0D']),(90,90))
+        self.assertEqual((guard.NO_SPEED_CONTROL_SHUTDOWN['CPU'],guard.NO_SPEED_CONTROL_SHUTDOWN['TC0D']),(70,70))
+        self.assertEqual(guard.NO_SPEED_CONTROL_EMERGENCY['CPU'],85)
+        # Other components keep their limits.
+        for key,limit in guard.SHUTDOWN_LIMITS.items():
+            if key not in ('CPU','TC0D'):
+                self.assertEqual(guard.NO_SPEED_CONTROL_SHUTDOWN[key],limit)
+        self.assertEqual(guard.SHUTDOWN_LIMITS['TC0H'],65)
+        self.assertEqual(guard.SHUTDOWN_LIMITS['Tp0C'],65)
+        self.assertLess(guard.CPU_SPEED_LIMIT_AT,guard.SHUTDOWN_LIMITS['CPU'])
+
+    def test_cpufreq_levels_set_and_readback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            speed=guard.CpuSpeed(cpufreq_tree(tmp))
+            self.assertEqual(speed.levels,[1596000,1862000,2128000,2394000])
+            self.assertEqual(speed.maximum,2394000)
+            speed.set(1596000)
+            for core in (0,1):
+                self.assertEqual((Path(tmp)/f'cpu{core}/cpufreq/scaling_max_freq').read_text(),'1596000')
+
+    def test_unexpected_cpufreq_layout_is_refused(self):
+        for cores,levels in [(1,(1596000,2394000)),(2,(2394000,))]:
+            with tempfile.TemporaryDirectory() as tmp, self.subTest(cores=cores,levels=levels):
+                with self.assertRaises(guard.Unsafe):guard.CpuSpeed(cpufreq_tree(tmp,levels,cores))
+
+    def test_policy_limits_at_80_and_resumes_one_level_per_two_cool_minutes(self):
+        p=guard.SpeedPolicy(FakeSpeed.levels)
+        self.assertEqual(p.update(79.9,0),2394000)
+        self.assertEqual(p.update(80,1),1596000)
+        self.assertEqual(p.update(75,2),1596000)       # 70-80 C holds the limit
+        self.assertEqual(p.update(69,10),1596000)
+        self.assertEqual(p.update(69,129),1596000)
+        self.assertEqual(p.update(69,130),1862000)
+        self.assertEqual(p.update(72,200),1862000)      # warm reading restarts the cool period
+        self.assertEqual(p.update(69,201),1862000)
+        self.assertEqual(p.update(69,320),1862000)
+        self.assertEqual(p.update(69,321),2128000)
+        self.assertEqual(p.update(69,441),2394000)
+        self.assertEqual(p.update(81,442),1596000)
+
+    @patch('guard.emit')
+    def test_failed_write_stops_speed_control_only(self,emit):
+        control=guard.SpeedControl(FakeSpeed(fail_after=1))
+        self.assertTrue(control.active)
+        control.update(85,0)
+        self.assertFalse(control.active)
+        self.assertTrue(control.used)
+        self.assertIn('cpu_speed_control_failed',[c.args[0] for c in emit.call_args_list])
+
+    def test_fallback_shutdown_keeps_hot_time(self):
+        # A sensor that is already hot keeps its time. The CPU counts from the switch.
+        shutdown=guard.ThermalShutdown();psu=ShutdownTests.hot('Tp0C',65)
+        self.assertFalse(shutdown.update(psu,0))
+        fallback=guard.no_speed_control_shutdown(shutdown)
+        self.assertTrue(fallback.update(psu,10))
+        shutdown=guard.ThermalShutdown();cpu=ShutdownTests.hot('CPU',75)
+        self.assertFalse(shutdown.update(cpu,0))
+        fallback=guard.no_speed_control_shutdown(shutdown)
+        self.assertFalse(fallback.update(cpu,5))
+        self.assertFalse(fallback.update(cpu,14))
+        self.assertTrue(fallback.update(cpu,15))
+
+    @patch('guard.emit')
+    @patch('guard.Path')
+    def test_restore_writes_maximum_for_every_core(self,path,emit):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=cpufreq_tree(tmp)
+            for core in (0,1):(root/f'cpu{core}/cpufreq/scaling_max_freq').write_text('1596000')
+            path.return_value=root
+            guard.restore_cpu_speed()
+            for core in (0,1):
+                self.assertEqual((root/f'cpu{core}/cpufreq/scaling_max_freq').read_text(),'2394000')
+        emit.assert_called_once_with('cpu_speed_restored',errors=[])
+
+    def run_control(self,speed,cpu_at,until):
+        h=FakeHardware();h.cpu_speed=lambda:speed;clock=[0.0];statuses=[]
+        def sleep(seconds):
+            clock[0]+=seconds;h.value['rpm']=h.value['target']
+            h.value['independent']['coretemp/temp2_input']=cpu_at(clock[0])
+            if clock[0]>until:raise guard.StopRequested('done')
+        with patch.dict('os.environ',{'INVOCATION_ID':'test','WATCHDOG_USEC':'8000000'}), \
+             patch('os.geteuid',return_value=0),patch('guard.signal.signal'), \
+             patch('guard.notify',side_effect=statuses.append), \
+             patch('guard.time.sleep',side_effect=sleep),patch('guard.time.monotonic',side_effect=lambda:clock[0]), \
+             patch('guard.restore'),patch('guard.restore_cpu_speed') as restore_speed, \
+             patch('guard.request_poweroff',return_value=True) as poweroff,patch('guard.emit') as events:
+            with self.assertRaises(guard.StopRequested):guard.control(h,2350)
+        return statuses,restore_speed,poweroff,[c.args[0] for c in events.call_args_list]
+
+    def test_controller_limits_speed_while_hot_and_restores_on_stop(self):
+        speed=FakeSpeed()
+        statuses,restore_speed,poweroff,events=self.run_control(
+            speed,lambda t:82 if 100<=t<110 else 40,500)
+        self.assertEqual(speed.writes,[2394000,1596000,1862000,2128000,2394000])
+        self.assertIn('cpu_speed_limited',events)
+        self.assertEqual(events.count('cpu_speed_raised'),3)
+        self.assertTrue(any('CPU speed limit 1596 MHz' in s for s in statuses))
+        poweroff.assert_not_called()  # 82 C is below the 85 C shutdown limit
+        restore_speed.assert_called_once()
+
+    def test_controller_without_speed_control_keeps_70_c_shutdown(self):
+        _,restore_speed,poweroff,_=self.run_control(None,lambda t:72 if t>=100 else 40,130)
+        poweroff.assert_called()
+        restore_speed.assert_not_called()
+
+    def test_failed_speed_write_returns_to_70_c_shutdown(self):
+        speed=FakeSpeed(fail_after=1)
+        _,restore_speed,poweroff,events=self.run_control(speed,lambda t:82 if t>=100 else 40,130)
+        self.assertIn('cpu_speed_control_failed',events)
+        poweroff.assert_called()
+        restore_speed.assert_called_once()
+
+    def test_critical_temperature_sets_lowest_speed(self):
+        speed=FakeSpeed()
+        _,_,poweroff,_=self.run_control(speed,lambda t:86 if t>=100 else 40,130)
+        poweroff.assert_called()
+        self.assertEqual(speed.writes[-1],1596000)
 
 
 if __name__=='__main__':unittest.main()

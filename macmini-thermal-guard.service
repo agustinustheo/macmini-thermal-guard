@@ -21,7 +21,7 @@ NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
-ReadWritePaths=/sys/devices/platform/applesmc.768 /run/macmini-thermal-guard
+ReadWritePaths=/sys/devices/platform/applesmc.768 /sys/devices/system/cpu /run/macmini-thermal-guard
 RestrictAddressFamilies=AF_UNIX
 
 [Install]

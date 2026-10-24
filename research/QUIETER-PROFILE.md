@@ -84,7 +84,7 @@ the first valid sample. Unknown constant G channels remain excluded.
 
 | Channel(s) | Sustained C | Emergency C |
 | --- | ---: | ---: |
-| Highest CPU core/diode, TC0D | 70 | 85 |
+| Highest CPU core/diode, TC0D | 85 (70 without CPU speed control) | 90 (85 without CPU speed control) |
 | Independent GPU | 75 | 90 |
 | Tp0C (PSU-labelled) | 65 | 70 |
 | TA0P | 45 | 50 |

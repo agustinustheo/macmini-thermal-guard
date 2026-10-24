@@ -3,6 +3,7 @@
 
 No direct SMC-port access, fault clearing, firmware changes, or boot installation.
 Temperature limits below are conservative experiment cutoffs, not Apple ratings.
+When the CPU is hot, the controller also lowers the cpufreq speed limit.
 """
 import argparse
 import fcntl
@@ -72,15 +73,34 @@ SHUTDOWN_LIMITS = {
     'TN0D': 70, 'TN0P': 65, 'TN0p': 65,
     'TN1D': 75, 'TN1E': 75, 'TN1F': 75, 'TN1S': 75,
     'TO0P': 55, 'TO0p': 55, 'TW0P': 60, 'Tm0P': 60, 'Tp0C': 65,
-    'CPU': 70, 'GPU': 75,
+    'CPU': 85, 'GPU': 75,
 }
+# CPU and TC0D are die sensors. The P8600 junction limit is 105 C. The higher
+# CPU limits are valid only while the CPU speed limit below can reduce heat.
+SHUTDOWN_LIMITS['TC0D'] = 85
 EMERGENCY_LIMITS = {key: value + 5 for key, value in SHUTDOWN_LIMITS.items()}
-EMERGENCY_LIMITS.update(CPU=85, TC0D=85, GPU=90)
+EMERGENCY_LIMITS.update(GPU=90)
+# Without cpufreq control, keep the earlier CPU limits.
+NO_SPEED_CONTROL_SHUTDOWN = dict(SHUTDOWN_LIMITS, CPU=70, TC0D=70)
+NO_SPEED_CONTROL_EMERGENCY = dict(EMERGENCY_LIMITS, CPU=85, TC0D=85)
+
+# CPU speed limit. Fan cooling is often already at maximum (latched SMC flag),
+# so lower CPU power is the remaining way to reduce heat before shutdown.
+CPU_SPEED_LIMIT_AT = 80
+CPU_SPEED_RESUME_BELOW = 70
+CPU_SPEED_RESUME_SECONDS = 120
+
+
+def cpu_temperature(snapshot):
+    return max(snapshot['temps']['TC0D'], *(v for k, v in
+               snapshot['independent'].items() if k.startswith('coretemp/')))
 
 
 class ThermalShutdown:
     """Latch a shutdown after 10 continuous hot seconds, or immediately higher."""
-    def __init__(self):
+    def __init__(self, limits=SHUTDOWN_LIMITS, emergency=EMERGENCY_LIMITS):
+        self.limits = limits
+        self.emergency = emergency
         self.hot_since = {}
         self.reasons = []
 
@@ -89,14 +109,13 @@ class ThermalShutdown:
             return self.reasons
         check(snapshot, enforce_cutoffs=False, check_fan=False)
         values = dict(snapshot['temps'])
-        values['CPU'] = max(snapshot['temps']['TC0D'], *(v for k, v in
-            snapshot['independent'].items() if k.startswith('coretemp/')))
+        values['CPU'] = cpu_temperature(snapshot)
         values['GPU'] = max(v for k, v in snapshot['independent'].items()
                             if k.startswith('nouveau/'))
-        for key, threshold in SHUTDOWN_LIMITS.items():
+        for key, threshold in self.limits.items():
             value = values[key]
-            if value >= EMERGENCY_LIMITS[key]:
-                self.reasons.append(f'{key} {value} C >= emergency {EMERGENCY_LIMITS[key]} C')
+            if value >= self.emergency[key]:
+                self.reasons.append(f'{key} {value} C >= emergency {self.emergency[key]} C')
             if value >= threshold:
                 if snapshot['rpm'] < snapshot['minimum'] - 250:
                     self.reasons.append(f'{key} >= {threshold} C with inadequate fan RPM')
@@ -106,6 +125,111 @@ class ThermalShutdown:
             else:
                 self.hot_since.pop(key, None)
         return self.reasons
+
+
+class CpuSpeed:
+    """Set the cpufreq speed limit of both cores. Reads no temperatures."""
+    def __init__(self, root=Path('/sys/devices/system/cpu')):
+        self.policies = sorted(root.glob('cpu[0-9]*/cpufreq'))
+        if len(self.policies) != 2:
+            raise Unsafe('Expected cpufreq for both CPU cores')
+        self.levels = sorted(int(v) for v in
+            (self.policies[0] / 'scaling_available_frequencies').read_text().split())
+        self.maximum = int((self.policies[0] / 'cpuinfo_max_freq').read_text())
+        if len(self.levels) < 2 or self.levels[-1] != self.maximum:
+            raise Unsafe('Unexpected cpufreq speed levels')
+
+    def set(self, khz):
+        for policy in self.policies:
+            (policy / 'scaling_max_freq').write_text(str(khz))
+        for policy in self.policies:
+            if int((policy / 'scaling_max_freq').read_text()) != khz:
+                raise Unsafe('CPU speed limit readback mismatch')
+
+
+class SpeedPolicy:
+    """Lowest speed at CPU_SPEED_LIMIT_AT; one level up per cool period."""
+    def __init__(self, levels):
+        self.levels = levels
+        self.index = len(levels) - 1
+        self.cool_since = None
+
+    def update(self, cpu_temp, now):
+        if cpu_temp >= CPU_SPEED_LIMIT_AT:
+            self.index = 0
+            self.cool_since = None
+        elif cpu_temp < CPU_SPEED_RESUME_BELOW and self.index < len(self.levels) - 1:
+            if self.cool_since is None:
+                self.cool_since = now
+            elif now - self.cool_since >= CPU_SPEED_RESUME_SECONDS:
+                self.index += 1
+                self.cool_since = now
+        else:
+            self.cool_since = None
+        return self.levels[self.index]
+
+
+class SpeedControl:
+    """Apply SpeedPolicy. A failed write stops speed control, not the guard."""
+    def __init__(self, speed):
+        self.speed = speed
+        self.used = False
+        if speed:
+            self.policy = SpeedPolicy(speed.levels)
+            self.limit = None
+            self._set(speed.maximum)
+
+    @property
+    def active(self):
+        return self.speed is not None
+
+    def _set(self, khz):
+        self.used = True
+        try:
+            self.speed.set(khz)
+        except (OSError, Unsafe) as exc:
+            emit('cpu_speed_control_failed', error=str(exc))
+            self.speed = None
+            return False
+        self.limit = khz
+        return True
+
+    def update(self, cpu_temp, now):
+        if not self.speed:
+            return
+        wanted = self.policy.update(cpu_temp, now)
+        if wanted != self.limit:
+            event = 'cpu_speed_limited' if wanted < self.limit else 'cpu_speed_raised'
+            if self._set(wanted):
+                emit(event, limit_khz=wanted, cpu=cpu_temp)
+
+    def lowest(self):
+        if self.speed and self.limit != self.speed.levels[0]:
+            self._set(self.speed.levels[0])
+
+    def note(self):
+        if self.speed and self.limit != self.speed.maximum:
+            return f'; CPU speed limit {self.limit // 1000} MHz'
+        return ''
+
+
+def no_speed_control_shutdown(shutdown):
+    """Keep the hot-time record, but use the earlier CPU limits."""
+    fallback = ThermalShutdown(NO_SPEED_CONTROL_SHUTDOWN, NO_SPEED_CONTROL_EMERGENCY)
+    fallback.hot_since = shutdown.hot_since
+    fallback.reasons = shutdown.reasons
+    return fallback
+
+
+def restore_cpu_speed():
+    # Separate, minimal path like restore(): it must not depend on sensors.
+    errors = []
+    for policy in Path('/sys/devices/system/cpu').glob('cpu[0-9]*/cpufreq'):
+        try:
+            (policy / 'scaling_max_freq').write_text((policy / 'cpuinfo_max_freq').read_text())
+        except OSError as exc:
+            errors.append(f'{policy.parent.name}: {exc}')
+    emit('cpu_speed_restored', errors=errors)
 
 
 def request_poweroff(reasons):
@@ -164,6 +288,14 @@ class Hardware:
 
     def read(self, name):
         return int((self.smc / name).read_text().strip())
+
+    def cpu_speed(self):
+        """Return CPU speed control, or None. The guard then keeps the lower CPU limits."""
+        try:
+            return CpuSpeed()
+        except (OSError, ValueError, Unsafe) as exc:
+            emit('cpu_speed_unavailable', error=str(exc))
+            return None
 
     def write(self, name, value):
         (self.smc / name).write_text(str(value))
@@ -373,7 +505,10 @@ def control(hw, minimum=4300, boost_seconds=0):
     logged = 0
     mode = 'auto'
     policy = Policy()
+    speed = SpeedControl(hw.cpu_speed())
     shutdown = ThermalShutdown()
+    if not speed.active:
+        shutdown = no_speed_control_shutdown(shutdown)
     poweroff_accepted = False
     next_poweroff_attempt = 0
     try:
@@ -394,12 +529,17 @@ def control(hw, minimum=4300, boost_seconds=0):
                     target = baseline['maximum']
                 except OSError as exc:
                     emit('critical_cooling_write_failed', error=str(exc))
+                speed.lowest()
                 if not poweroff_accepted and time.monotonic() >= next_poweroff_attempt:
                     poweroff_accepted = request_poweroff(critical)
                     next_poweroff_attempt = time.monotonic() + 10
                 notify('WATCHDOG=1\nSTATUS=Critical temperature; maximum cooling and poweroff requested')
                 continue
             check(snap, enforce_cutoffs=False)
+            speed.update(cpu_temperature(snap), time.monotonic())
+            if not speed.active and shutdown.limits is SHUTDOWN_LIMITS:
+                shutdown = no_speed_control_shutdown(shutdown)
+            speed_note = speed.note()
             faults = hw.faults()
             if any(faults.values()) and fault_latched is None:
                 fault_latched = dict(faults)
@@ -422,7 +562,7 @@ def control(hw, minimum=4300, boost_seconds=0):
                 hw.write('fan1_output', baseline['maximum'])
                 if abs(hw.read('fan1_output') - baseline['maximum']) > 10:
                     raise Unsafe('Fault cooling command readback mismatch')
-                notify(f'WATCHDOG=1\nSTATUS=Fault cooling latched; fan {snap["rpm"]} RPM; temperature shutdown active')
+                notify(f'WATCHDOG=1\nSTATUS=Fault cooling latched; fan {snap["rpm"]} RPM; temperature shutdown active{speed_note}')
                 if time.monotonic() - logged >= 10:
                     emit('control', mode=mode, reason='Unexplained SMC status; maximum cooling latched',
                          thermal_demand=baseline['maximum'], drivers=['fault_hold'],
@@ -464,12 +604,16 @@ def control(hw, minimum=4300, boost_seconds=0):
                 hw.write('fan1_output', target)
                 if abs(hw.read('fan1_output') - target) > 10:
                     raise Unsafe('Fan command readback mismatch')
-            notify(f'WATCHDOG=1\nSTATUS={mode}; demand {','.join(drivers)}; fan {snap["rpm"]} RPM; PSU {snap["temps"]["Tp0C"]} C; floor {minimum} RPM')
+            notify(f'WATCHDOG=1\nSTATUS={mode}; demand {','.join(drivers)}; fan {snap["rpm"]} RPM; PSU {snap["temps"]["Tp0C"]} C; floor {minimum} RPM{speed_note}')
             if time.monotonic() - logged >= 10:
                 emit('control', mode=mode, reason=policy.reason, thermal_demand=request, drivers=drivers, requested=target if mode=='manual' else None, faults=faults, **snap)
                 logged = time.monotonic()
     finally:
-        restore()
+        try:
+            restore()
+        finally:
+            if speed.used:
+                restore_cpu_speed()
 
 
 def monitor(hw, seconds):
@@ -539,7 +683,10 @@ def main():
     if args.boost_seconds and args.mode != 'control':
         parser.error('--boost-seconds requires control mode')
     if args.mode == 'restore':
-        restore()
+        try:
+            restore()
+        finally:
+            restore_cpu_speed()
         return
     if args.mode == 'wait':
         deadline = time.monotonic() + 30

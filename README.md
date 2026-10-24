@@ -156,7 +156,7 @@ at or above its component-specific shutdown threshold for 10 continuous seconds:
 
 | Reading | Sustained shutdown | Immediate emergency shutdown |
 | --- | ---: | ---: |
-| Highest CPU core / CPU diode | 70 C | 85 C |
+| Highest CPU core / CPU diode (TC0D) | 85 C | 90 C |
 | Independent GPU | 75 C | 90 C |
 | PSU-labelled Tp0C | 65 C | 70 C |
 | Memory-proximity TM0P/TM0p | 60 C | 65 C |
@@ -165,7 +165,11 @@ at or above its component-specific shutdown threshold for 10 continuous seconds:
 Every required SMC channel is covered; the complete table is in
 [the profile reference](research/QUIETER-PROFILE.md). These are deliberately
 precautionary operating cutoffs, not verified component damage limits.
-Cooling requests 5500 RPM below these thresholds (CPU by 2 C, GPU by 3 C).
+Cooling requests 5500 RPM below these thresholds (CPU by 17 C, GPU by 3 C).
+The CPU limits apply only while CPU speed control works (see below). Without it,
+the earlier CPU limits apply: 70 C sustained and 85 C immediate.
+CPU-proximity channels TC0H/TC0P/TC0p keep their 65 C limit. They read about
+12 C below the cores, so they can stop the machine first under sustained load.
 The numeric margins do not guarantee cooling or shutdown response time. A valid critical reading
 with grossly inadequate fan RPM also requests poweroff immediately.
 
@@ -186,6 +190,45 @@ poweroff attempt. There is no automatic reboot and no forced power cut.
 The shutdown path is simulation-tested; actual poweroff was not deliberately
 triggered. It requires working sensors, Linux and systemd and cannot guarantee
 protection against hidden hardware faults or a hung system.
+
+## CPU speed limit
+
+With the SMC status flag latched, the fan already runs at maximum. More CPU
+load then raises the temperature with no remaining fan response. Two shutdowns
+on 2026-10-24 were `CPU >= 70 C for 10 seconds` in this state; the hottest
+reading was an on-die coretemp core. The controller therefore lowers the
+cpufreq speed limit of both cores when the CPU is hot:
+
+| Highest CPU core / CPU diode | Action |
+| --- | --- |
+| 80 C or more | Limit both cores to the lowest speed (1.60 GHz) at once |
+| 70–80 C | Keep the current limit |
+| Below 70 C for 2 minutes | Raise the limit one level; repeat to full speed (2.39 GHz) |
+| Critical shutdown latched | Limit to the lowest speed during poweroff |
+
+Lower speed also lowers the CPU voltage, so heat falls more than speed.
+Work continues more slowly; no process is stopped. The guard sets full
+speed when it starts, and when it stops (also through `guard.py restore`).
+A failed cpufreq write stops speed control only. The guard then applies the
+earlier 70 C CPU limits and keeps fan control and shutdown active.
+
+These are operating margins chosen by the operator, not Apple ratings. The
+P8600 junction limit is 105 C.
+
+Validation, 2026-10-24, installed controller, fan at 4500–5500 RPM:
+
+- A manual 1.60 GHz limit under normal multi-process load lowered the CPU by about 7 C in
+  10 seconds (62.4 C mean to 55.5 C). The PSU reading did not change.
+- A full two-core load for 9 minutes held the CPU at 67–71 C with the fan at
+  maximum. TC0H stayed at or below 55.75 C and Tp0C at or below 61.25 C. The CPU
+  stayed at or above 70 C for 14 seconds in a row: the earlier 70 C limit
+  would have shut down. The new controller did not shut down.
+- The CPU did not reach 80 C, so the speed limit did not start. The controller
+  wrote the cpufreq limit at startup in its sandbox without an error. The 80 C
+  step-down itself is simulation-tested only.
+
+Hotter rooms can still reach the speed limit, the CPU-proximity limits, or the
+PSU limit. The PSU reading does not follow CPU speed.
 
 **Limits:** This cannot prevent a short circuit, detect hidden liquid residue,
 repair electronics, or guarantee thermal safety during kernel/SMC/hardware
