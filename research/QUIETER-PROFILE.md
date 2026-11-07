@@ -78,7 +78,8 @@ the PSU's 58 C full-cooling or 65 C shutdown threshold. At 57 C the curve reques
 ## Controlled shutdown policy
 
 All values below are precautionary custom cutoffs, not manufacturer damage limits.
-The sustained threshold requires 10 continuous seconds on the same channel;
+The sustained threshold requires 10 continuous seconds on the same channel
+(60 seconds for Tp0C);
 a brief fall below it resets that channel's timer. Emergency thresholds act on
 the first valid sample. Unknown constant G channels remain excluded.
 
@@ -86,7 +87,7 @@ the first valid sample. Unknown constant G channels remain excluded.
 | --- | ---: | ---: |
 | Highest CPU core/diode, TC0D | 85 (70 without CPU speed control) | 90 (85 without CPU speed control) |
 | Independent GPU | 75 | 90 |
-| Tp0C (PSU-labelled) | 65 | 70 |
+| Tp0C (PSU-labelled) | 68 (for 60 s) | 72 |
 | TA0P | 45 | 50 |
 | TC0H, TC0P, TC0p | 65 | 70 |
 | TH0P, TH0p, TO0P, TO0p | 55 | 60 |

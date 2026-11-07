@@ -75,11 +75,17 @@ SHUTDOWN_LIMITS = {
     'TO0P': 55, 'TO0p': 55, 'TW0P': 60, 'Tm0P': 60, 'Tp0C': 65,
     'CPU': 85, 'GPU': 75,
 }
+# Tp0C plateaus at 62-63 C under sustained load with the fan at maximum (14 days
+# of logs to 2026-11-07, peak 62.75 C). The operator raised its limit and hold
+# time so normal heavy work cannot stop the machine.
+SHUTDOWN_LIMITS['Tp0C'] = 68
 # CPU and TC0D are die sensors. The P8600 junction limit is 105 C. The higher
 # CPU limits are valid only while the CPU speed limit below can reduce heat.
 SHUTDOWN_LIMITS['TC0D'] = 85
 EMERGENCY_LIMITS = {key: value + 5 for key, value in SHUTDOWN_LIMITS.items()}
-EMERGENCY_LIMITS.update(GPU=90)
+EMERGENCY_LIMITS.update(GPU=90, Tp0C=72)
+# Seconds a reading must stay at or above its limit. Default 10 seconds.
+SHUTDOWN_HOLD_SECONDS = {'Tp0C': 60}
 # Without cpufreq control, keep the earlier CPU limits.
 NO_SPEED_CONTROL_SHUTDOWN = dict(SHUTDOWN_LIMITS, CPU=70, TC0D=70)
 NO_SPEED_CONTROL_EMERGENCY = dict(EMERGENCY_LIMITS, CPU=85, TC0D=85)
@@ -97,7 +103,7 @@ def cpu_temperature(snapshot):
 
 
 class ThermalShutdown:
-    """Latch a shutdown after 10 continuous hot seconds, or immediately higher."""
+    """Latch a shutdown after the hold time (10 s; PSU 60 s), or immediately higher."""
     def __init__(self, limits=SHUTDOWN_LIMITS, emergency=EMERGENCY_LIMITS):
         self.limits = limits
         self.emergency = emergency
@@ -120,8 +126,9 @@ class ThermalShutdown:
                 if snapshot['rpm'] < snapshot['minimum'] - 250:
                     self.reasons.append(f'{key} >= {threshold} C with inadequate fan RPM')
                 self.hot_since.setdefault(key, now)
-                if now - self.hot_since[key] >= 10:
-                    self.reasons.append(f'{key} >= {threshold} C for 10 seconds')
+                hold = SHUTDOWN_HOLD_SECONDS.get(key, 10)
+                if now - self.hot_since[key] >= hold:
+                    self.reasons.append(f'{key} >= {threshold} C for {hold} seconds')
             else:
                 self.hot_since.pop(key, None)
         return self.reasons
@@ -475,7 +482,7 @@ class Policy:
         return self.mode
 
 
-def control(hw, minimum=4300, boost_seconds=0):
+def control(hw, minimum=4300, boost_seconds=0, poweroff_enabled=True):
     if not MIN_MANUAL_RPM <= minimum <= 4300:
         raise Unsafe(f'Manual floor must be {MIN_MANUAL_RPM}–4300 RPM')
     if type(boost_seconds) is not int or not 0 <= boost_seconds <= 600:
@@ -498,7 +505,8 @@ def control(hw, minimum=4300, boost_seconds=0):
         raise StopRequested(f'Stopped by signal {signum}')
     for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
         signal.signal(sig, stop)
-    emit('control_start', faults=faults, idle_floor=minimum, boost_seconds=boost_seconds, **baseline)
+    emit('control_start', faults=faults, idle_floor=minimum, boost_seconds=boost_seconds,
+         poweroff_enabled=poweroff_enabled, **baseline)
     boost_until = time.monotonic() + boost_seconds if boost_seconds else 0
     target = 5500
     last_increase = time.monotonic()
@@ -511,6 +519,8 @@ def control(hw, minimum=4300, boost_seconds=0):
         shutdown = no_speed_control_shutdown(shutdown)
     poweroff_accepted = False
     next_poweroff_attempt = 0
+    next_ignored_log = 0
+    shutdown_text = 'temperature shutdown active' if poweroff_enabled else 'automatic shutdown off'
     try:
         notify('READY=1\nWATCHDOG=1\nSTATUS=Automatic mode; watching all component temperatures')
         while True:
@@ -518,6 +528,13 @@ def control(hw, minimum=4300, boost_seconds=0):
             if not shutdown.reasons:
                 snap = hw.snapshot()
                 shutdown.update(snap, time.monotonic())
+            if shutdown.reasons and not poweroff_enabled:
+                # The operator turned automatic shutdown off. Record the event,
+                # keep fan and CPU speed control, and count again from now.
+                if time.monotonic() >= next_ignored_log:
+                    emit('critical_temperature_ignored', reasons=shutdown.reasons)
+                    next_ignored_log = time.monotonic() + 60
+                shutdown = ThermalShutdown(shutdown.limits, shutdown.emergency)
             critical = shutdown.reasons
             if critical:
                 # Shutdown must still be attempted if the cooling write fails.
@@ -562,7 +579,7 @@ def control(hw, minimum=4300, boost_seconds=0):
                 hw.write('fan1_output', baseline['maximum'])
                 if abs(hw.read('fan1_output') - baseline['maximum']) > 10:
                     raise Unsafe('Fault cooling command readback mismatch')
-                notify(f'WATCHDOG=1\nSTATUS=Fault cooling latched; fan {snap["rpm"]} RPM; temperature shutdown active{speed_note}')
+                notify(f'WATCHDOG=1\nSTATUS=Fault cooling latched; fan {snap["rpm"]} RPM; {shutdown_text}{speed_note}')
                 if time.monotonic() - logged >= 10:
                     emit('control', mode=mode, reason='Unexplained SMC status; maximum cooling latched',
                          thermal_demand=baseline['maximum'], drivers=['fault_hold'],
@@ -604,7 +621,7 @@ def control(hw, minimum=4300, boost_seconds=0):
                 hw.write('fan1_output', target)
                 if abs(hw.read('fan1_output') - target) > 10:
                     raise Unsafe('Fan command readback mismatch')
-            notify(f'WATCHDOG=1\nSTATUS={mode}; demand {','.join(drivers)}; fan {snap["rpm"]} RPM; PSU {snap["temps"]["Tp0C"]} C; floor {minimum} RPM{speed_note}')
+            notify(f'WATCHDOG=1\nSTATUS={mode}; demand {','.join(drivers)}; fan {snap["rpm"]} RPM; PSU {snap["temps"]["Tp0C"]} C; floor {minimum} RPM{speed_note}{'' if poweroff_enabled else '; automatic shutdown off'}')
             if time.monotonic() - logged >= 10:
                 emit('control', mode=mode, reason=policy.reason, thermal_demand=request, drivers=drivers, requested=target if mode=='manual' else None, faults=faults, **snap)
                 logged = time.monotonic()
@@ -677,11 +694,15 @@ def main():
     parser.add_argument('--seconds', type=int, default=30)
     parser.add_argument('--rpm', type=int, default=5000)
     parser.add_argument('--min-rpm', type=int, default=4300)
+    parser.add_argument('--no-shutdown', action='store_true',
+                        help='Log critical temperatures, but do not request poweroff')
     parser.add_argument('--boost-seconds', type=int, default=0,
                         help='Start control with 0–600 seconds at maximum fan speed')
     args = parser.parse_args()
     if args.boost_seconds and args.mode != 'control':
         parser.error('--boost-seconds requires control mode')
+    if args.no_shutdown and args.mode != 'control':
+        parser.error('--no-shutdown requires control mode')
     if args.mode == 'restore':
         try:
             restore()
@@ -709,7 +730,7 @@ def main():
         with open('/run/macmini-thermal-guard/control.lock', 'w') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             if args.mode == 'control':
-                control(hw, args.min_rpm, args.boost_seconds)
+                control(hw, args.min_rpm, args.boost_seconds, not args.no_shutdown)
             else:
                 probe(hw, args.seconds, args.rpm)
 

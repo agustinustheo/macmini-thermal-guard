@@ -152,13 +152,14 @@ across the machine; CPU utilization is neither sampled nor used as a trigger.
 ## Critical-temperature shutdown
 
 The controller requests a controlled system poweroff after a valid reading stays
-at or above its component-specific shutdown threshold for 10 continuous seconds:
+at or above its component-specific shutdown threshold for 10 continuous seconds
+(60 seconds for the PSU-labelled Tp0C):
 
 | Reading | Sustained shutdown | Immediate emergency shutdown |
 | --- | ---: | ---: |
 | Highest CPU core / CPU diode (TC0D) | 85 C | 90 C |
 | Independent GPU | 75 C | 90 C |
-| PSU-labelled Tp0C | 65 C | 70 C |
+| PSU-labelled Tp0C | 68 C for 60 s | 72 C |
 | Memory-proximity TM0P/TM0p | 60 C | 65 C |
 | Drive-proximity TH0P/TH0p, TO0P/TO0p | 55 C | 60 C |
 
@@ -190,6 +191,33 @@ poweroff attempt. There is no automatic reboot and no forced power cut.
 The shutdown path is simulation-tested; actual poweroff was not deliberately
 triggered. It requires working sensors, Linux and systemd and cannot guarantee
 protection against hidden hardware faults or a hung system.
+
+Tp0C plateaus at 62–63 C under sustained load with the fan at maximum. In 14
+days of logs to 2026-11-07 its peak was 62.75 C and it never reached 63 C. The
+operator raised its limits from 65 C (10 s) and 70 C to 68 C (60 s) and 72 C,
+so normal heavy work cannot stop the machine. These are not manufacturer limits.
+
+### Turn automatic shutdown off
+
+`guard.py control --no-shutdown` keeps fan control and the CPU speed limit, but
+does not request a poweroff. Each crossed limit is logged as
+`critical_temperature_ignored` (at most once a minute), and the service status
+ends with `automatic shutdown off`. Use it only on purpose: the guard then
+gives no software protection against overheating. Hardware protection in the
+CPU remains. Set it with a local drop-in, not in the repository unit:
+
+```sh
+sudo mkdir -p /etc/systemd/system/macmini-thermal-guard.service.d
+sudo tee /etc/systemd/system/macmini-thermal-guard.service.d/50-no-shutdown.conf <<'UNIT'
+[Service]
+ExecStart=
+ExecStart=/usr/bin/python3 /usr/local/lib/macmini-thermal-guard/guard.py control --min-rpm 2350 --no-shutdown
+UNIT
+sudo systemctl daemon-reload && sudo systemctl restart macmini-thermal-guard
+```
+
+To turn automatic shutdown on again, delete that file, then run the same
+`daemon-reload` and `restart` commands.
 
 ## CPU speed limit
 

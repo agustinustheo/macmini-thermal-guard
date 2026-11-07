@@ -163,15 +163,21 @@ class Guards(unittest.TestCase):
             self.assertEqual(guard.desired_rpm(s,2350),expected)
             self.assertEqual('maximum manual cooling' in p.reason,temperature>=62)
     def test_psu_full_speed_does_not_move_shutdown_thresholds(self):
-        self.assertEqual(guard.SHUTDOWN_LIMITS['Tp0C'],65)
-        self.assertEqual(guard.EMERGENCY_LIMITS['Tp0C'],70)
+        self.assertEqual(guard.SHUTDOWN_LIMITS['Tp0C'],68)
+        self.assertEqual(guard.EMERGENCY_LIMITS['Tp0C'],72)
+        self.assertEqual(guard.SHUTDOWN_HOLD_SECONDS['Tp0C'],60)
         s=sample();s['temps']['Tp0C']=62;trip=guard.ThermalShutdown()
         self.assertEqual(trip.update(s,0),[])
         self.assertEqual(trip.update(s,20),[])
-        s['temps']['Tp0C']=65
+        s['temps']['Tp0C']=67.75  # above the 14-day peak of 62.75 C, below the limit
         self.assertEqual(trip.update(s,21),[])
-        self.assertEqual(trip.update(s,30),[])
-        self.assertTrue(trip.update(s,31))
+        self.assertEqual(trip.update(s,500),[])
+        s['temps']['Tp0C']=68
+        self.assertEqual(trip.update(s,501),[])
+        self.assertEqual(trip.update(s,560),[])
+        self.assertEqual(trip.update(s,561),['Tp0C >= 68 C for 60 seconds'])
+        s['temps']['Tp0C']=72
+        self.assertTrue(guard.ThermalShutdown().update(s,0))
     def test_psu_table_respects_configured_floor_and_reports_idle(self):
         s=sample();s['temps']['Tp0C']=57
         self.assertEqual(guard.thermal_demand(s,3000),(3000,['idle floor']))
@@ -631,14 +637,15 @@ class FaultHoldTests(ControllerHarness, unittest.TestCase):
         self.assertEqual([c.args[0] for c in events.call_args_list].count('fault_cooling_latched'),1)
 
     def test_sustained_component_heat_still_shuts_down_during_fault_hold(self):
-        for sensor,temperature in [('CPU',70),('TN1F',75),('Tp0C',65)]:
+        for sensor,temperature in [('CPU',70),('TN1F',75),('Tp0C',68)]:
             h=FakeHardware();h.faults=lambda:{'SPHS':1}
             def tick(t,hw):
                 if t>=3:
                     if sensor=='CPU':hw.value['independent']['coretemp/temp2_input']=temperature
                     else:hw.value['temps'][sensor]=temperature
             with self.subTest(sensor=sensor):
-                error,writes,_,_,poweroff=self.exercise(h,duration=0,steps=15,tick=tick)
+                steps=15+guard.SHUTDOWN_HOLD_SECONDS.get(sensor,10)
+                error,writes,_,_,poweroff=self.exercise(h,duration=0,steps=steps,tick=tick)
                 self.assertIsInstance(error,guard.StopRequested)
                 poweroff.assert_called_once()
                 self.assertTrue(all(v==5500 for _,name,v in writes if name=='fan1_output'))
@@ -676,14 +683,16 @@ class ShutdownTests(unittest.TestCase):
         for key,value in guard.FULL_COOLING.items():
             self.assertGreater(guard.SHUTDOWN_LIMITS[key],value)
 
-    def test_every_shutdown_channel_requires_ten_continuous_seconds(self):
+    def test_every_shutdown_channel_requires_its_continuous_hold_time(self):
         for key,limit in guard.SHUTDOWN_LIMITS.items():
+            hold=guard.SHUTDOWN_HOLD_SECONDS.get(key,10)
+            self.assertEqual(hold,60 if key=='Tp0C' else 10)
             p=guard.ThermalShutdown();s=self.hot(key,limit)
             with self.subTest(sensor=key):
                 self.assertFalse(p.update(s,0))
-                self.assertFalse(p.update(s,9.9))
-                self.assertTrue(p.update(s,10))
-                self.assertTrue(p.update(sample(),11))  # latched even if it cools
+                self.assertFalse(p.update(s,hold-0.1))
+                self.assertTrue(p.update(s,hold))
+                self.assertTrue(p.update(sample(),hold+1))  # latched even if it cools
 
     def test_short_spike_and_alternating_hot_sensors_do_not_accumulate(self):
         p=guard.ThermalShutdown()
@@ -781,7 +790,7 @@ class CpuSpeedTests(unittest.TestCase):
             if key not in ('CPU','TC0D'):
                 self.assertEqual(guard.NO_SPEED_CONTROL_SHUTDOWN[key],limit)
         self.assertEqual(guard.SHUTDOWN_LIMITS['TC0H'],65)
-        self.assertEqual(guard.SHUTDOWN_LIMITS['Tp0C'],65)
+        self.assertEqual(guard.SHUTDOWN_LIMITS['Tp0C'],68)
         self.assertLess(guard.CPU_SPEED_LIMIT_AT,guard.SHUTDOWN_LIMITS['CPU'])
 
     def test_cpufreq_levels_set_and_readback(self):
@@ -824,10 +833,11 @@ class CpuSpeedTests(unittest.TestCase):
 
     def test_fallback_shutdown_keeps_hot_time(self):
         # A sensor that is already hot keeps its time. The CPU counts from the switch.
-        shutdown=guard.ThermalShutdown();psu=ShutdownTests.hot('Tp0C',65)
+        shutdown=guard.ThermalShutdown();psu=ShutdownTests.hot('Tp0C',68)
         self.assertFalse(shutdown.update(psu,0))
         fallback=guard.no_speed_control_shutdown(shutdown)
-        self.assertTrue(fallback.update(psu,10))
+        self.assertFalse(fallback.update(psu,59))
+        self.assertTrue(fallback.update(psu,60))
         shutdown=guard.ThermalShutdown();cpu=ShutdownTests.hot('CPU',75)
         self.assertFalse(shutdown.update(cpu,0))
         fallback=guard.no_speed_control_shutdown(shutdown)
@@ -847,11 +857,12 @@ class CpuSpeedTests(unittest.TestCase):
                 self.assertEqual((root/f'cpu{core}/cpufreq/scaling_max_freq').read_text(),'2394000')
         emit.assert_called_once_with('cpu_speed_restored',errors=[])
 
-    def run_control(self,speed,cpu_at,until):
+    def run_control(self,speed,cpu_at,until,poweroff_enabled=True,psu_at=None):
         h=FakeHardware();h.cpu_speed=lambda:speed;clock=[0.0];statuses=[]
         def sleep(seconds):
             clock[0]+=seconds;h.value['rpm']=h.value['target']
             h.value['independent']['coretemp/temp2_input']=cpu_at(clock[0])
+            if psu_at:h.value['temps']['Tp0C']=psu_at(clock[0])
             if clock[0]>until:raise guard.StopRequested('done')
         with patch.dict('os.environ',{'INVOCATION_ID':'test','WATCHDOG_USEC':'8000000'}), \
              patch('os.geteuid',return_value=0),patch('guard.signal.signal'), \
@@ -859,8 +870,29 @@ class CpuSpeedTests(unittest.TestCase):
              patch('guard.time.sleep',side_effect=sleep),patch('guard.time.monotonic',side_effect=lambda:clock[0]), \
              patch('guard.restore'),patch('guard.restore_cpu_speed') as restore_speed, \
              patch('guard.request_poweroff',return_value=True) as poweroff,patch('guard.emit') as events:
-            with self.assertRaises(guard.StopRequested):guard.control(h,2350)
+            with self.assertRaises(guard.StopRequested):guard.control(h,2350,0,poweroff_enabled)
         return statuses,restore_speed,poweroff,[c.args[0] for c in events.call_args_list]
+
+    def test_no_shutdown_switch_logs_and_keeps_controlling(self):
+        speed=FakeSpeed()
+        statuses,_,poweroff,events=self.run_control(
+            speed,lambda t:86 if t>=100 else 40,200,poweroff_enabled=False)
+        poweroff.assert_not_called()
+        # Hot from 100 s: limits trip at 110, 120, ...; one log line per minute.
+        self.assertEqual(events.count('critical_temperature_ignored'),2)
+        self.assertFalse(any('Critical temperature' in s for s in statuses))
+        self.assertIn('; CPU speed limit 1596 MHz; automatic shutdown off',statuses[-1])
+        self.assertEqual(speed.writes[-1],1596000)
+
+    def test_no_shutdown_switch_covers_psu_limit(self):
+        _,_,poweroff,events=self.run_control(
+            FakeSpeed(),lambda t:40,200,poweroff_enabled=False,psu_at=lambda t:69 if t>=100 else 30)
+        poweroff.assert_not_called()
+        self.assertIn('critical_temperature_ignored',events)
+
+    def test_shutdown_stays_on_by_default(self):
+        _,_,poweroff,_=self.run_control(FakeSpeed(),lambda t:40,200,psu_at=lambda t:69 if t>=100 else 30)
+        poweroff.assert_called()
 
     def test_controller_limits_speed_while_hot_and_restores_on_stop(self):
         speed=FakeSpeed()
